@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from time import perf_counter
 from uuid import uuid4
 
+from common.approval_repository import ApprovalRepository
 from common.agent import (
     ALLOWED_TOOLS,
     APPROVAL_REQUIRED_AGENT_MODE,
@@ -30,6 +31,7 @@ from common.trace_repository import TraceRepository
 LOGGER = get_logger(__name__)
 TRACE_TABLE_NAME = os.environ.get("TRACE_TABLE_NAME", "")
 RAG_QUERY_LOG_GROUP_NAME = os.environ.get("RAG_QUERY_LOG_GROUP_NAME", "")
+ACTION_APPROVALS_TABLE_NAME = os.environ.get("ACTION_APPROVALS_TABLE_NAME", "")
 
 
 def _serialize_trace_value(value):
@@ -263,6 +265,25 @@ def _save_proposed_action_agent_trace(
         "answer_preview": answer_preview[:500],
     }
     TraceRepository(TRACE_TABLE_NAME).save_trace(_serialize_trace_value(trace_record))
+
+
+def _create_pending_approval(request_id, task, proposed_action):
+    approval_id = f"approval-{uuid4()}"
+    approval_record = {
+        "approval_id": approval_id,
+        "request_id": request_id,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "task": task,
+        "proposed_action": proposed_action,
+        "status": "pending_approval",
+        "decision": None,
+        "decided_by": None,
+        "decided_at": None,
+        "comment": None,
+        "execution_status": "pending_approval",
+    }
+    ApprovalRepository(ACTION_APPROVALS_TABLE_NAME).create_approval(approval_record)
+    return approval_id
 
 
 def _summarize_trace_result(trace_record):
@@ -645,6 +666,8 @@ def lambda_handler(event, context):
 
         if not RAG_QUERY_LOG_GROUP_NAME:
             return json_response(500, {"message": "RAG query log group is not configured."})
+        if not ACTION_APPROVALS_TABLE_NAME:
+            return json_response(500, {"message": "Action approvals table is not configured."})
 
         investigation_result = _run_bounded_blocked_investigation(payload["minutes"])
         log_summary = investigation_result["logSummary"]
@@ -657,11 +680,14 @@ def lambda_handler(event, context):
             inspected_traces,
             investigation_answer,
         )
+        proposed_action["executionStatus"] = "pending_approval"
+        approval_id = _create_pending_approval(request_id, payload["task"], proposed_action)
         answer = "I prepared an incident report proposal. It has not been executed and requires human approval."
         response_body = {
             "requestId": request_id,
             "agentMode": APPROVAL_REQUIRED_AGENT_MODE,
             "task": payload["task"],
+            "approvalId": approval_id,
             "plan": plan,
             "toolCalls": tool_calls,
             "investigation": {
@@ -694,6 +720,7 @@ def lambda_handler(event, context):
             path=path,
             user_id=user_id,
             task=payload["task"],
+            approval_id=approval_id,
             matched_events=log_summary["matchedEvents"],
             inspected_trace_count=len(inspected_traces),
             proposed_action_type=proposed_action["actionType"],

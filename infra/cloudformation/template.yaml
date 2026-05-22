@@ -64,6 +64,18 @@ Resources:
         - AttributeName: chunk_id
           KeyType: RANGE
 
+  ActionApprovalsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub ai-platform-action-approvals-${EnvironmentName}
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: approval_id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: approval_id
+          KeyType: HASH
+
   HealthFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -219,6 +231,7 @@ Resources:
         Variables:
           DOCUMENT_CHUNKS_TABLE_NAME: !Ref DocumentChunksTable
           TRACE_TABLE_NAME: !Ref AiPlatformRequestTrace
+          ACTION_APPROVALS_TABLE_NAME: !Ref ActionApprovalsTable
           BEDROCK_MODEL_ID: apac.amazon.nova-lite-v1:0
           EMBEDDING_MODEL_ID: cohere.embed-english-v3
           MIN_SIMILARITY_SCORE: "0.25"
@@ -237,6 +250,10 @@ Resources:
               Resource: !GetAtt AiPlatformRequestTrace.Arn
             - Effect: Allow
               Action:
+                - dynamodb:PutItem
+              Resource: !GetAtt ActionApprovalsTable.Arn
+            - Effect: Allow
+              Action:
                 - bedrock:InvokeModel
                 - bedrock:Converse
               Resource: "*"
@@ -250,6 +267,37 @@ Resources:
           Properties:
             RestApiId: !Ref ApiGateway
             Path: /agent/run
+            Method: post
+
+  ApprovalsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ../../backend/lambda
+      Handler: approvals.handler.lambda_handler
+      Description: Approval lookup and decision recording endpoint for proposed agent actions.
+      Environment:
+        Variables:
+          ACTION_APPROVALS_TABLE_NAME: !Ref ActionApprovalsTable
+      Policies:
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - dynamodb:GetItem
+                - dynamodb:UpdateItem
+              Resource: !GetAtt ActionApprovalsTable.Arn
+      Events:
+        GetApproval:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ApiGateway
+            Path: /approvals/{approvalId}
+            Method: get
+        PostApprovalDecision:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ApiGateway
+            Path: /approvals/{approvalId}/decision
             Method: post
 
 Outputs:
@@ -272,3 +320,7 @@ Outputs:
   DocumentChunksTableName:
     Description: DynamoDB table storing indexed document chunks.
     Value: !Ref DocumentChunksTable
+
+  ActionApprovalsTableName:
+    Description: DynamoDB table storing approval workflow records.
+    Value: !Ref ActionApprovalsTable

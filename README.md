@@ -1,6 +1,6 @@
 # AWS AI Platform PoC
 
-This repository contains a minimal AWS backend foundation for an AI platform, now extended through Phase 6E with a mini RAG flow that stores document embeddings in DynamoDB, filters eligible chunks by metadata boundaries, validates requested retrieval scope against a simple caller policy, applies AWS-side throttling protections, blocks unsafe input patterns before retrieval, filters weak matches with a similarity threshold, validates output grounding signals, and exposes a controlled agent wrapper around the same retrieval path with an explicit approval boundary for proposed write actions.
+This repository contains a minimal AWS backend foundation for an AI platform, now extended through Phase 6F with a mini RAG flow that stores document embeddings in DynamoDB, filters eligible chunks by metadata boundaries, validates requested retrieval scope against a simple caller policy, applies AWS-side throttling protections, blocks unsafe input patterns before retrieval, filters weak matches with a similarity threshold, validates output grounding signals, and exposes a controlled agent wrapper around the same retrieval path with explicit human approval boundaries for proposed write actions.
 
 ## Why this foundation exists
 
@@ -31,6 +31,7 @@ aws-ai-platform-poc/
     lambda/
       common/
         action_proposal.py
+        approval_repository.py
         bedrock_client.py
         chunking.py
         document_repository.py
@@ -43,6 +44,8 @@ aws-ai-platform-poc/
         trace_lookup.py
         trace_repository.py
         vector_math.py
+      approvals/
+        handler.py
       agent_run/
         handler.py
       chat/
@@ -624,3 +627,13 @@ The new `propose_incident_report` task reuses the same bounded blocked-request i
 This keeps the learning PoC clear about the boundary: the agent may prepare a draft, but a human must approve any write-capable next step before it happens.
 
 Production systems could connect this approval boundary to ticketing systems, email workflows, or incident management tooling later, but the approval decision should stay explicit and auditable before those write actions are enabled.
+
+## Phase 6F - Human Approval Workflow Skeleton
+
+Phase 6E created action proposals only. Phase 6F adds the next control step: proposal persistence and recorded human approval or rejection. This phase still does not execute external actions. It stores approval workflow state only.
+
+The `propose_incident_report` task now creates an approval record in DynamoDB, returns an `approvalId`, and marks the proposal as `pending_approval`. Separate approval endpoints let a human review that record and submit an approval or rejection decision.
+
+This is the skeleton for human-in-the-loop control. Approval does not create tickets, send email, or trigger any external workflow yet. Those execution steps remain explicitly out of scope.
+
+Production systems could later connect approved actions to ticketing, email, or workflow execution with a stronger audit trail, stronger identity, and tighter approval controls.
