@@ -1,6 +1,6 @@
 # AWS AI Platform PoC
 
-This repository contains a minimal AWS backend foundation for an AI platform, now extended through Phase 6D with a mini RAG flow that stores document embeddings in DynamoDB, filters eligible chunks by metadata boundaries, validates requested retrieval scope against a simple caller policy, applies AWS-side throttling protections, blocks unsafe input patterns before retrieval, filters weak matches with a similarity threshold, validates output grounding signals, and exposes a controlled read-only agent wrapper around the same retrieval path.
+This repository contains a minimal AWS backend foundation for an AI platform, now extended through Phase 6E with a mini RAG flow that stores document embeddings in DynamoDB, filters eligible chunks by metadata boundaries, validates requested retrieval scope against a simple caller policy, applies AWS-side throttling protections, blocks unsafe input patterns before retrieval, filters weak matches with a similarity threshold, validates output grounding signals, and exposes a controlled agent wrapper around the same retrieval path with an explicit approval boundary for proposed write actions.
 
 ## Why this foundation exists
 
@@ -30,6 +30,7 @@ aws-ai-platform-poc/
   backend/
     lambda/
       common/
+        action_proposal.py
         bedrock_client.py
         chunking.py
         document_repository.py
@@ -613,3 +614,13 @@ This makes the agent more useful for explaining recent blocked requests while ke
 The workflow is intentionally small for a learning PoC. It searches a limited recent window, inspects at most three trace records, and returns a compact summary of blocked reasons when they can be determined.
 
 In production, this kind of investigation flow should be paired with stronger incident workflows, dashboards, alarms, richer observability tooling, and explicit human approval before any write-capable follow-up action is introduced.
+
+## Phase 6E - Human Approval Boundary for Write Actions
+
+Phase 6E adds the first approval-gated action proposal flow. The earlier agent phases intentionally limited the toolset to read-only inspection and retrieval. That is the safe first step. Once an agent starts proposing actions that could lead to ticketing, email, or other operational workflows, it needs an explicit human approval boundary.
+
+The new `propose_incident_report` task reuses the same bounded blocked-request investigation from Phase 6D, then builds a deterministic incident report proposal. It does not execute any external write action. Instead, it returns a `proposedAction` object with `requiresApproval: true` and `executionStatus: not_executed`.
+
+This keeps the learning PoC clear about the boundary: the agent may prepare a draft, but a human must approve any write-capable next step before it happens.
+
+Production systems could connect this approval boundary to ticketing systems, email workflows, or incident management tooling later, but the approval decision should stay explicit and auditable before those write actions are enabled.

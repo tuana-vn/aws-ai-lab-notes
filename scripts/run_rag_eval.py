@@ -261,6 +261,44 @@ def _evaluate_case(case_definition, response):
             and "matchedEvents" in log_summary
             and isinstance(inspected_traces, list)
         )
+    elif case_type == "agent_propose_incident_report":
+        expected_status = case_definition.get("expectedStatus")
+        expected_action_type = case_definition.get("expectedActionType")
+        expected_requires_approval = case_definition.get("expectedRequiresApproval")
+        expected_execution_status = case_definition.get("expectedExecutionStatus")
+        tool_calls = response_body.get("toolCalls", [])
+        proposed_action = response_body.get("proposedAction", {})
+
+        tool_names = {
+            tool_call.get("toolName")
+            for tool_call in tool_calls
+            if isinstance(tool_call, dict)
+        }
+        missing_tool_names = [tool_name for tool_name in ["log_search", "trace_lookup"] if tool_name not in tool_names]
+        if response_status != expected_status:
+            notes.append(f"expected status '{expected_status}' but got '{response_status}'")
+        if missing_tool_names:
+            notes.append(f"expected tools not found: {', '.join(missing_tool_names)}")
+        if proposed_action.get("actionType") != expected_action_type:
+            notes.append(
+                f"expected proposedAction.actionType '{expected_action_type}' but got '{proposed_action.get('actionType')}'"
+            )
+        if proposed_action.get("requiresApproval") is not expected_requires_approval:
+            notes.append(
+                f"expected proposedAction.requiresApproval '{expected_requires_approval}' but got '{proposed_action.get('requiresApproval')}'"
+            )
+        if proposed_action.get("executionStatus") != expected_execution_status:
+            notes.append(
+                f"expected proposedAction.executionStatus '{expected_execution_status}' but got '{proposed_action.get('executionStatus')}'"
+            )
+
+        passed = (
+            response_status == expected_status
+            and not missing_tool_names
+            and proposed_action.get("actionType") == expected_action_type
+            and proposed_action.get("requiresApproval") is expected_requires_approval
+            and proposed_action.get("executionStatus") == expected_execution_status
+        )
     elif case_type in {"out_of_source", "metadata_boundary"}:
         normalized_answer = _normalize_text(answer)
         no_answer_detected = NO_ANSWER_TEXT.casefold() in normalized_answer
@@ -384,6 +422,12 @@ def _build_request_payload(case_definition, results_by_case_id):
         }
 
     if case_definition.get("type") == "agent_investigate_recent_blocks":
+        return {
+            "task": task,
+            "minutes": case_definition.get("minutes", 120),
+        }
+
+    if case_definition.get("type") == "agent_propose_incident_report":
         return {
             "task": task,
             "minutes": case_definition.get("minutes", 120),

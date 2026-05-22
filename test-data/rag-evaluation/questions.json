@@ -149,5 +149,16 @@
     "minutes": 120,
     "expectedStatus": "completed",
     "expectedToolNames": ["log_search", "trace_lookup"]
+  },
+  {
+    "caseId": "Q014",
+    "type": "agent_propose_incident_report",
+    "endpoint": "/agent/run",
+    "task": "propose_incident_report",
+    "minutes": 120,
+    "expectedStatus": "approval_required",
+    "expectedActionType": "create_incident_report",
+    "expectedRequiresApproval": true,
+    "expectedExecutionStatus": "not_executed"
   }
 ]

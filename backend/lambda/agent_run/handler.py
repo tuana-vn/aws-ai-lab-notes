@@ -7,14 +7,17 @@ from uuid import uuid4
 
 from common.agent import (
     ALLOWED_TOOLS,
+    APPROVAL_REQUIRED_AGENT_MODE,
     ANSWER_QUESTION_TASK,
     INSPECT_TRACE_TASK,
     INVESTIGATE_RECENT_BLOCKS_TASK,
+    PROPOSE_INCIDENT_REPORT_TASK,
     SEARCH_LOGS_TASK,
     READ_ONLY_AGENT_MODE,
     build_plan,
     build_tool_call,
 )
+from common.action_proposal import build_incident_report_proposal
 from common.investigation import extract_request_ids_from_log_events, summarize_investigation
 from common.log_search import SUPPORTED_PRESETS, search_logs
 from common.logging import get_logger, log_json
@@ -92,6 +95,16 @@ def _parse_body(event):
         }
 
     if task == INVESTIGATE_RECENT_BLOCKS_TASK:
+        minutes = body.get("minutes", 120)
+        if isinstance(minutes, bool) or not isinstance(minutes, int) or minutes < 1 or minutes > 1440:
+            raise ValueError("Field 'minutes' must be an integer between 1 and 1440.")
+
+        return {
+            "task": task,
+            "minutes": minutes,
+        }
+
+    if task == PROPOSE_INCIDENT_REPORT_TASK:
         minutes = body.get("minutes", 120)
         if isinstance(minutes, bool) or not isinstance(minutes, int) or minutes < 1 or minutes > 1440:
             raise ValueError("Field 'minutes' must be an integer between 1 and 1440.")
@@ -218,6 +231,40 @@ def _save_investigation_agent_trace(
     TraceRepository(TRACE_TABLE_NAME).save_trace(_serialize_trace_value(trace_record))
 
 
+def _save_proposed_action_agent_trace(
+    request_id,
+    path,
+    user_id,
+    plan,
+    tool_calls,
+    matched_events,
+    inspected_trace_count,
+    proposed_action,
+    latency_ms,
+    answer_preview,
+):
+    trace_record = {
+        "request_id": request_id,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "path": path,
+        "task": PROPOSE_INCIDENT_REPORT_TASK,
+        "user_id": user_id,
+        "agent_mode": APPROVAL_REQUIRED_AGENT_MODE,
+        "plan": plan,
+        "tool_calls": tool_calls,
+        "matched_events": matched_events,
+        "inspected_trace_count": inspected_trace_count,
+        "proposed_action_type": proposed_action.get("actionType"),
+        "proposed_action_requires_approval": proposed_action.get("requiresApproval"),
+        "proposed_action_severity": proposed_action.get("severity"),
+        "execution_status": proposed_action.get("executionStatus"),
+        "status": APPROVAL_REQUIRED_AGENT_MODE,
+        "latency_ms": latency_ms,
+        "answer_preview": answer_preview[:500],
+    }
+    TraceRepository(TRACE_TABLE_NAME).save_trace(_serialize_trace_value(trace_record))
+
+
 def _summarize_trace_result(trace_record):
     status = trace_record.get("status")
     if status == "blocked":
@@ -275,6 +322,43 @@ def _build_tool_call_with_metadata(tool_name: str, status: str, **extra_fields) 
 
 def _tool_is_allowlisted(tool_name):
     return tool_name in ALLOWED_TOOLS
+
+
+def _run_bounded_blocked_investigation(minutes: int):
+    search_result = search_logs(
+        RAG_QUERY_LOG_GROUP_NAME,
+        "blocked",
+        minutes,
+        limit=10,
+    )
+    candidate_request_ids = extract_request_ids_from_log_events(search_result["events"], limit=3)
+    inspected_traces = []
+    inspected_trace_statuses = []
+    for target_request_id in candidate_request_ids:
+        trace_record = lookup_trace(target_request_id, TRACE_TABLE_NAME)
+        trace_summary = _build_investigation_trace_summary(target_request_id, trace_record)
+        inspected_traces.append(trace_summary)
+        inspected_trace_statuses.append(trace_summary["status"])
+
+    tool_calls = [
+        build_tool_call("log_search", "completed"),
+        _build_tool_call_with_metadata(
+            "trace_lookup",
+            "completed",
+            targetRequestCount=len(candidate_request_ids),
+        ),
+    ]
+    log_summary = {
+        "preset": search_result["preset"],
+        "minutes": search_result["minutes"],
+        "matchedEvents": search_result["matchedEvents"],
+    }
+    return {
+        "logSummary": log_summary,
+        "inspectedTraces": inspected_traces,
+        "inspectedTraceStatuses": inspected_trace_statuses,
+        "toolCalls": tool_calls,
+    }
 
 
 def lambda_handler(event, context):
@@ -483,34 +567,11 @@ def lambda_handler(event, context):
         if not RAG_QUERY_LOG_GROUP_NAME:
             return json_response(500, {"message": "RAG query log group is not configured."})
 
-        search_result = search_logs(
-            RAG_QUERY_LOG_GROUP_NAME,
-            "blocked",
-            payload["minutes"],
-            limit=10,
-        )
-        candidate_request_ids = extract_request_ids_from_log_events(search_result["events"], limit=3)
-        inspected_traces = []
-        inspected_trace_statuses = []
-        for target_request_id in candidate_request_ids:
-            trace_record = lookup_trace(target_request_id, TRACE_TABLE_NAME)
-            trace_summary = _build_investigation_trace_summary(target_request_id, trace_record)
-            inspected_traces.append(trace_summary)
-            inspected_trace_statuses.append(trace_summary["status"])
-
-        tool_calls = [
-            build_tool_call("log_search", "completed"),
-            _build_tool_call_with_metadata(
-                "trace_lookup",
-                "completed",
-                targetRequestCount=len(candidate_request_ids),
-            ),
-        ]
-        log_summary = {
-            "preset": search_result["preset"],
-            "minutes": search_result["minutes"],
-            "matchedEvents": search_result["matchedEvents"],
-        }
+        investigation_result = _run_bounded_blocked_investigation(payload["minutes"])
+        log_summary = investigation_result["logSummary"]
+        inspected_traces = investigation_result["inspectedTraces"]
+        inspected_trace_statuses = investigation_result["inspectedTraceStatuses"]
+        tool_calls = investigation_result["toolCalls"]
         answer = summarize_investigation(log_summary, inspected_traces)
         response_body = {
             "requestId": request_id,
@@ -530,8 +591,8 @@ def lambda_handler(event, context):
             user_id,
             plan,
             tool_calls,
-            search_result["minutes"],
-            search_result["matchedEvents"],
+            log_summary["minutes"],
+            log_summary["matchedEvents"],
             len(inspected_traces),
             inspected_trace_statuses,
             response_body["status"],
@@ -551,6 +612,95 @@ def lambda_handler(event, context):
             matched_events=log_summary["matchedEvents"],
             inspected_trace_count=len(inspected_traces),
             agent_mode=READ_ONLY_AGENT_MODE,
+            tool_calls=tool_calls,
+            status=response_body["status"],
+            latency_ms=latency_ms,
+        )
+        return json_response(200, response_body)
+
+    if payload["task"] == PROPOSE_INCIDENT_REPORT_TASK:
+        if not _tool_is_allowlisted("log_search"):
+            log_json(
+                LOGGER,
+                logging.ERROR,
+                "log search tool not allowlisted",
+                request_id=request_id,
+                path=path,
+                user_id=user_id,
+                task=payload["task"],
+            )
+            return json_response(500, {"message": "log_search tool is not configured."})
+
+        if not _tool_is_allowlisted("trace_lookup"):
+            log_json(
+                LOGGER,
+                logging.ERROR,
+                "trace lookup tool not allowlisted",
+                request_id=request_id,
+                path=path,
+                user_id=user_id,
+                task=payload["task"],
+            )
+            return json_response(500, {"message": "trace_lookup tool is not configured."})
+
+        if not RAG_QUERY_LOG_GROUP_NAME:
+            return json_response(500, {"message": "RAG query log group is not configured."})
+
+        investigation_result = _run_bounded_blocked_investigation(payload["minutes"])
+        log_summary = investigation_result["logSummary"]
+        inspected_traces = investigation_result["inspectedTraces"]
+        tool_calls = investigation_result["toolCalls"]
+        investigation_answer = summarize_investigation(log_summary, inspected_traces)
+        proposed_action = build_incident_report_proposal(
+            payload["minutes"],
+            log_summary,
+            inspected_traces,
+            investigation_answer,
+        )
+        answer = "I prepared an incident report proposal. It has not been executed and requires human approval."
+        response_body = {
+            "requestId": request_id,
+            "agentMode": APPROVAL_REQUIRED_AGENT_MODE,
+            "task": payload["task"],
+            "plan": plan,
+            "toolCalls": tool_calls,
+            "investigation": {
+                "logSummary": log_summary,
+                "inspectedTraces": inspected_traces,
+                "answer": investigation_answer,
+            },
+            "proposedAction": proposed_action,
+            "answer": answer,
+            "status": APPROVAL_REQUIRED_AGENT_MODE,
+        }
+        latency_ms = int((perf_counter() - started_at) * 1000)
+        _save_proposed_action_agent_trace(
+            request_id,
+            path,
+            user_id,
+            plan,
+            tool_calls,
+            log_summary["matchedEvents"],
+            len(inspected_traces),
+            proposed_action,
+            latency_ms,
+            answer,
+        )
+        log_json(
+            LOGGER,
+            logging.INFO,
+            "agent incident report proposal prepared",
+            request_id=request_id,
+            path=path,
+            user_id=user_id,
+            task=payload["task"],
+            matched_events=log_summary["matchedEvents"],
+            inspected_trace_count=len(inspected_traces),
+            proposed_action_type=proposed_action["actionType"],
+            proposed_action_requires_approval=proposed_action["requiresApproval"],
+            proposed_action_severity=proposed_action["severity"],
+            execution_status=proposed_action["executionStatus"],
+            agent_mode=APPROVAL_REQUIRED_AGENT_MODE,
             tool_calls=tool_calls,
             status=response_body["status"],
             latency_ms=latency_ms,

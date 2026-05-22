@@ -1,9 +1,11 @@
 ALLOWED_TOOLS = ["rag_query", "trace_lookup", "log_search"]
 READ_ONLY_AGENT_MODE = "read_only"
+APPROVAL_REQUIRED_AGENT_MODE = "approval_required"
 ANSWER_QUESTION_TASK = "answer_question"
 INSPECT_TRACE_TASK = "inspect_trace"
 SEARCH_LOGS_TASK = "search_logs"
 INVESTIGATE_RECENT_BLOCKS_TASK = "investigate_recent_blocks"
+PROPOSE_INCIDENT_REPORT_TASK = "propose_incident_report"
 
 
 def build_plan(task: str) -> list[str]:
@@ -43,6 +45,15 @@ def build_plan(task: str) -> list[str]:
             "Run trace_lookup tool for candidate request IDs",
             "Summarize blocked request reasons",
             "Return investigation result",
+        ]
+
+    if task == PROPOSE_INCIDENT_REPORT_TASK:
+        return [
+            "Validate request",
+            "Run bounded blocked-request investigation",
+            "Build incident report draft",
+            "Mark proposed action as requiring human approval",
+            "Return action proposal without execution",
         ]
 
     return ["Validate request"]
