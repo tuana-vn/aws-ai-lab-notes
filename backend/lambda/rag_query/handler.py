@@ -18,6 +18,7 @@ DOCUMENT_CHUNKS_TABLE_NAME = os.environ.get("DOCUMENT_CHUNKS_TABLE_NAME", "")
 TRACE_TABLE_NAME = os.environ.get("TRACE_TABLE_NAME", "")
 BEDROCK_MODEL_ID = os.environ.get("BEDROCK_MODEL_ID", "apac.amazon.nova-lite-v1:0")
 EMBEDDING_MODEL_ID = os.environ.get("EMBEDDING_MODEL_ID", "cohere.embed-english-v3")
+MIN_SIMILARITY_SCORE = float(os.environ.get("MIN_SIMILARITY_SCORE", "0.25"))
 RETRIEVAL_MODE = "embedding"
 NO_SOURCE_ANSWER = "I do not know based on the available documents."
 
@@ -92,6 +93,37 @@ def _serialize_sources_for_trace(sources):
     ]
 
 
+def _build_no_source_response(request_id):
+    return {
+        "requestId": request_id,
+        "answer": NO_SOURCE_ANSWER,
+        "sources": [],
+        "modelId": BEDROCK_MODEL_ID,
+        "embeddingModelId": EMBEDDING_MODEL_ID,
+        "retrievalMode": RETRIEVAL_MODE,
+        "minSimilarityScore": MIN_SIMILARITY_SCORE,
+        "status": "no_source",
+    }
+
+
+def _build_trace_record(request_id, path, question, answer_preview, sources, status, latency_ms):
+    return {
+        "request_id": request_id,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "path": path,
+        "question": question,
+        "answer_preview": answer_preview[:500],
+        "model_id": BEDROCK_MODEL_ID,
+        "embedding_model_id": EMBEDDING_MODEL_ID,
+        "retrieval_mode": RETRIEVAL_MODE,
+        "min_similarity_score": str(MIN_SIMILARITY_SCORE),
+        "source_count": len(sources),
+        "sources": _serialize_sources_for_trace(sources),
+        "status": status,
+        "latency_ms": latency_ms,
+    }
+
+
 def lambda_handler(event, context):
     request_id = str(uuid4())
     path = event.get("rawPath") or event.get("path") or "/rag/query"
@@ -117,26 +149,25 @@ def lambda_handler(event, context):
         question_embedding = EmbeddingClient(EMBEDDING_MODEL_ID).embed_query(question)
         # This scan-and-score approach is intentionally simple for a learning PoC.
         # Production retrieval should use a proper vector store or Bedrock Knowledge Bases.
-        top_chunks = retrieve_top_chunks(question_embedding, chunks)
+        top_chunks = retrieve_top_chunks(
+            question_embedding,
+            chunks,
+            min_similarity_score=MIN_SIMILARITY_SCORE,
+        )
         sources = _serialize_sources(top_chunks)
 
         if not top_chunks:
             latency_ms = int((perf_counter() - started_at) * 1000)
             TraceRepository(TRACE_TABLE_NAME).save_trace(
-                {
-                    "request_id": request_id,
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
-                    "path": path,
-                    "question": question,
-                    "answer_preview": NO_SOURCE_ANSWER[:500],
-                    "model_id": BEDROCK_MODEL_ID,
-                    "embedding_model_id": EMBEDDING_MODEL_ID,
-                    "retrieval_mode": RETRIEVAL_MODE,
-                    "source_count": 0,
-                    "sources": [],
-                    "status": "no_source",
-                    "latency_ms": latency_ms,
-                }
+                _build_trace_record(
+                    request_id,
+                    path,
+                    question,
+                    NO_SOURCE_ANSWER,
+                    [],
+                    "no_source",
+                    latency_ms,
+                )
             )
             log_json(
                 LOGGER,
@@ -147,38 +178,26 @@ def lambda_handler(event, context):
                 model_id=BEDROCK_MODEL_ID,
                 embedding_model_id=EMBEDDING_MODEL_ID,
                 retrieval_mode=RETRIEVAL_MODE,
+                min_similarity_score=MIN_SIMILARITY_SCORE,
                 latency_ms=latency_ms,
                 source_count=0,
                 status="no_source",
             )
-            return json_response(
-                200,
-                {
-                    "requestId": request_id,
-                    "answer": NO_SOURCE_ANSWER,
-                    "sources": [],
-                    "status": "no_source",
-                },
-            )
+            return json_response(200, _build_no_source_response(request_id))
 
         prompt = _build_grounded_prompt(question, top_chunks)
         answer = BedrockClient().converse(BEDROCK_MODEL_ID, prompt)
         latency_ms = int((perf_counter() - started_at) * 1000)
 
-        trace_record = {
-            "request_id": request_id,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-            "path": path,
-            "question": question,
-            "answer_preview": answer[:500],
-            "model_id": BEDROCK_MODEL_ID,
-            "embedding_model_id": EMBEDDING_MODEL_ID,
-            "retrieval_mode": RETRIEVAL_MODE,
-            "source_count": len(sources),
-            "sources": _serialize_sources_for_trace(sources),
-            "status": "completed",
-            "latency_ms": latency_ms,
-        }
+        trace_record = _build_trace_record(
+            request_id,
+            path,
+            question,
+            answer,
+            sources,
+            "completed",
+            latency_ms,
+        )
         TraceRepository(TRACE_TABLE_NAME).save_trace(trace_record)
 
         log_json(
@@ -190,6 +209,7 @@ def lambda_handler(event, context):
             model_id=BEDROCK_MODEL_ID,
             embedding_model_id=EMBEDDING_MODEL_ID,
             retrieval_mode=RETRIEVAL_MODE,
+            min_similarity_score=MIN_SIMILARITY_SCORE,
             latency_ms=latency_ms,
             source_count=len(sources),
             status="completed",
@@ -202,7 +222,9 @@ def lambda_handler(event, context):
                 "answer": answer,
                 "sources": sources,
                 "modelId": BEDROCK_MODEL_ID,
-                    "embeddingModelId": EMBEDDING_MODEL_ID,
+                "embeddingModelId": EMBEDDING_MODEL_ID,
+                "retrievalMode": RETRIEVAL_MODE,
+                "minSimilarityScore": MIN_SIMILARITY_SCORE,
                 "status": "completed",
             },
         )
@@ -218,6 +240,7 @@ def lambda_handler(event, context):
             model_id=BEDROCK_MODEL_ID,
             embedding_model_id=EMBEDDING_MODEL_ID,
             retrieval_mode=RETRIEVAL_MODE,
+            min_similarity_score=MIN_SIMILARITY_SCORE,
             latency_ms=latency_ms,
             source_count=source_count,
             status="failed",
@@ -236,6 +259,7 @@ def lambda_handler(event, context):
                     "model_id": BEDROCK_MODEL_ID,
                     "embedding_model_id": EMBEDDING_MODEL_ID,
                     "retrieval_mode": RETRIEVAL_MODE,
+                    "min_similarity_score": MIN_SIMILARITY_SCORE,
                     "latency_ms": latency_ms,
                     "source_count": source_count,
                     "status": "failed",

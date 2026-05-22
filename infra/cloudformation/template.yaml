@@ -167,6 +167,7 @@ Resources:
           TRACE_TABLE_NAME: !Ref AiPlatformRequestTrace
           BEDROCK_MODEL_ID: apac.amazon.nova-lite-v1:0
           EMBEDDING_MODEL_ID: cohere.embed-english-v3
+          MIN_SIMILARITY_SCORE: "0.25"
       Policies:
         - Version: '2012-10-17'
           Statement:

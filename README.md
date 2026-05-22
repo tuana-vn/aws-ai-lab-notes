@@ -1,6 +1,6 @@
 # AWS AI Platform PoC
 
-This repository contains a minimal AWS backend foundation for an AI platform, now extended through Phase 3B with a mini RAG flow that stores document embeddings in DynamoDB and performs embedding-based semantic retrieval before grounded Amazon Bedrock inference.
+This repository contains a minimal AWS backend foundation for an AI platform, now extended through Phase 3D with a mini RAG flow that stores document embeddings in DynamoDB, filters weak matches with a similarity threshold, and performs grounded Amazon Bedrock inference only when retrieval is strong enough.
 
 ## Why this foundation exists
 
@@ -67,6 +67,8 @@ aws-ai-platform-poc/
 ```
 
 Phase 3C adds a local evaluation workflow that re-indexes a known document, runs a small set of grounded RAG questions against the deployed API, and writes both raw JSON results and a readable Markdown report under a local `reports/` folder.
+
+Phase 3D hardens the retrieval step with `MIN_SIMILARITY_SCORE`, defaulting to `0.25`. Chunks below that threshold are treated as not grounded enough, so `/rag/query` returns a `no_source` result with an empty `sources` array instead of sending weak context to the LLM.
 
 ## Endpoints
 
@@ -183,7 +185,7 @@ Successful response:
 
 When no similar chunks are found, `/rag/query` returns `I do not know based on the available documents.` with an empty `sources` array and a `no_source` status. This keeps the RAG flow explicit and grounded instead of guessing.
 
-`/rag/query` now generates a query embedding, scans document chunks from DynamoDB, calculates cosine similarity against each stored embedding, keeps the top 3 chunks with similarity greater than zero, and only then calls Bedrock Converse for answer generation.
+`/rag/query` now generates a query embedding, scans document chunks from DynamoDB, calculates cosine similarity against each stored embedding, keeps only chunks with similarity greater than or equal to `MIN_SIMILARITY_SCORE`, selects the top 3 remaining chunks, and only then calls Bedrock Converse for answer generation.
 
 ## Design notes
 
@@ -304,6 +306,16 @@ python3 scripts/run_rag_eval.py
 ```
 
 Read the Markdown report first to see total pass/fail counts, per-case notes, source document IDs, and short answer snippets. Use the JSON file when you want the full request expectations and raw API responses for each evaluation case.
+
+## Phase 3D - Similarity Threshold and No-Source Hardening
+
+Similarity thresholding is needed because similarity greater than zero is too weak for grounded retrieval. A chunk can be mathematically closer than zero while still being effectively unrelated to the user question. Sending those weak matches to the LLM increases the chance of noisy citations, irrelevant `sources`, and answers that look grounded when they are not.
+
+Phase 3D adds `MIN_SIMILARITY_SCORE`, with a default value of `0.25` for this learning PoC. The `/rag/query` flow still computes cosine similarity for every scanned chunk, but it now drops chunks below the threshold before ranking the top results.
+
+This matters for out-of-source questions. If no chunk meets the threshold, the Lambda does not call Bedrock Converse. Instead it returns the existing no-answer text, an empty `sources` array, `status: no_source`, and includes both `retrievalMode` and `minSimilarityScore` in the response for easier debugging.
+
+The threshold is configured on `RagQueryFunction` through the environment variable `MIN_SIMILARITY_SCORE`. For this PoC, `0.25` is a readable starting point: high enough to block obviously weak matches, but still simple enough to tune while learning how retrieval quality changes.
 
 ## Local test payload
 

@@ -74,6 +74,23 @@ def _extract_source_document_ids(response_body):
     return source_document_ids
 
 
+def _format_source_summaries(response_body):
+    source_summaries = []
+    for source in response_body.get("sources", []):
+        if not isinstance(source, dict):
+            continue
+
+        document_id = source.get("documentId", "-")
+        similarity = source.get("similarity")
+        if similarity is None:
+            source_summaries.append(str(document_id))
+            continue
+
+        source_summaries.append(f"{document_id} ({similarity})")
+
+    return source_summaries
+
+
 def _answer_contains_any_keyword(answer, keywords):
     normalized_answer = _normalize_text(answer)
     for keyword in keywords:
@@ -110,11 +127,18 @@ def _evaluate_case(case_definition, response):
         passed = status_matches and has_expected_source and has_expected_keyword
     elif case_type == "out_of_source":
         normalized_answer = _normalize_text(answer)
-        no_answer_detected = NO_ANSWER_TEXT.casefold() in normalized_answer or response_status == "no_source"
+        no_answer_detected = NO_ANSWER_TEXT.casefold() in normalized_answer
+        no_source_status = response_status == "no_source"
+        no_sources_returned = not source_document_ids
+
         if not no_answer_detected:
             notes.append("response did not refuse the out-of-source question")
+        if not no_source_status:
+            notes.append(f"expected status 'no_source' but got '{response_status}'")
+        if not no_sources_returned:
+            notes.append("expected sources to be empty for out-of-source question")
 
-        passed = no_answer_detected
+        passed = no_answer_detected and no_source_status and no_sources_returned
     else:
         notes.append(f"unsupported case type '{case_type}'")
         passed = False
@@ -135,11 +159,11 @@ def _evaluate_case(case_definition, response):
 
 
 def _format_sources_for_markdown(response_body):
-    source_document_ids = _extract_source_document_ids(response_body)
-    if not source_document_ids:
+    source_summaries = _format_source_summaries(response_body)
+    if not source_summaries:
         return "-"
 
-    return ", ".join(source_document_ids)
+    return ", ".join(source_summaries)
 
 
 def _answer_snippet(answer, limit=240):
@@ -170,19 +194,20 @@ def _write_markdown_report(api_base_url, started_at, results):
         f"- passed cases: {passed_cases}",
         f"- failed cases: {failed_cases}",
         "",
-        "| Case ID | Type | Question | Status | Sources | Pass/Fail | Notes |",
-        "| --- | --- | --- | --- | --- | --- | --- |",
+        "| Case ID | Type | Question | Status | Sources | Min Similarity | Pass/Fail | Notes |",
+        "| --- | --- | --- | --- | --- | --- | --- | --- |",
     ]
 
     for result in results:
         response_body = result["response"].get("body", {})
         status = response_body.get("status", "-")
         sources = _format_sources_for_markdown(response_body)
+        min_similarity_score = response_body.get("minSimilarityScore", "-")
         pass_fail = "PASS" if result["pass"] else "FAIL"
         question = str(result["question"]).replace("|", "\\|")
         notes = str(result["notes"]).replace("|", "\\|")
         lines.append(
-            f"| {result['caseId']} | {result['type']} | {question} | {status} | {sources} | {pass_fail} | {notes} |"
+            f"| {result['caseId']} | {result['type']} | {question} | {status} | {sources} | {min_similarity_score} | {pass_fail} | {notes} |"
         )
 
     lines.extend(["", "## Answer Snippets", ""])
@@ -190,11 +215,19 @@ def _write_markdown_report(api_base_url, started_at, results):
     for result in results:
         response_body = result["response"].get("body", {})
         answer = response_body.get("answer", "")
+        sources = _format_sources_for_markdown(response_body)
+        min_similarity_score = response_body.get("minSimilarityScore", "-")
         lines.extend(
             [
                 f"### {result['caseId']}",
                 "",
                 f"Question: {result['question']}",
+                "",
+                f"Status: {response_body.get('status', '-')}",
+                "",
+                f"Sources: {sources}",
+                "",
+                f"Min Similarity Score: {min_similarity_score}",
                 "",
                 f"Answer: {_answer_snippet(answer) or '-'}",
                 "",

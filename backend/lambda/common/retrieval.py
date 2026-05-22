@@ -9,6 +9,7 @@ def retrieve_top_chunks(
     question_embedding: list[float],
     chunks: list[dict[str, Any]],
     limit: int = 3,
+    min_similarity_score: float = 0.0,
 ) -> list[dict[str, Any]]:
     scored_chunks: list[tuple[float, int, str, dict[str, Any]]] = []
 
@@ -23,7 +24,7 @@ def retrieve_top_chunks(
             continue
 
         similarity = cosine_similarity(question_embedding, chunk_embedding)
-        if similarity <= 0.0:
+        if similarity < min_similarity_score:
             continue
 
         chunk_index = int(chunk.get("chunk_index", 0))

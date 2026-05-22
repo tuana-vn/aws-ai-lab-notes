@@ -1,6 +1,6 @@
 {
   "apiBaseUrl": "https://dj4qxxa454.execute-api.ap-southeast-1.amazonaws.com/v1",
-  "timestamp": "2026-05-22T06:31:01.514786+00:00",
+  "timestamp": "2026-05-22T06:54:19.492683+00:00",
   "documentResponse": {
     "httpStatusCode": 200,
     "body": {
@@ -31,8 +31,8 @@
       "response": {
         "httpStatusCode": 200,
         "body": {
-          "requestId": "f13cd6fa-ff1f-4033-b58a-700534336d15",
-          "answer": "API Gateway helps developers create, publish, maintain, monitor, and secure APIs. It can handle routing, throttling, authorization, request validation, and integration with AWS services. (Source: documentId=api-gateway-note, chunkId=chunk-0001)",
+          "requestId": "e74ad5a8-8191-4910-a033-3f49dc940f8d",
+          "answer": "Amazon API Gateway helps developers create, publish, maintain, monitor, and secure APIs. It can act as the front door for applications to access backend services such as Lambda functions or container-based services. API Gateway can handle routing, throttling, authorization, request validation, and integration with AWS services. (Source: documentId=api-gateway-note, chunkId=chunk-0001)",
           "sources": [
             {
               "documentId": "api-gateway-note",
@@ -44,6 +44,8 @@
           ],
           "modelId": "apac.amazon.nova-lite-v1:0",
           "embeddingModelId": "cohere.embed-english-v3",
+          "retrievalMode": "embedding",
+          "minSimilarityScore": 0.25,
           "status": "completed"
         }
       },
@@ -67,8 +69,8 @@
       "response": {
         "httpStatusCode": 200,
         "body": {
-          "requestId": "af999d78-6a2d-417e-bcde-6e280244d93f",
-          "answer": "API Gateway can limit excessive traffic through throttling. Throttling helps control the rate of incoming requests to prevent backend services from being overwhelmed.\n\n[Source: documentId=api-gateway-note, chunkId=chunk-0001]",
+          "requestId": "18b97db8-a029-4347-82bd-8d251eac2a63",
+          "answer": "API Gateway can limit excessive traffic through throttling. This feature allows you to control the rate at which clients can make API requests.\n\n[Source: documentId=api-gateway-note, chunkId=chunk-0001]",
           "sources": [
             {
               "documentId": "api-gateway-note",
@@ -80,6 +82,8 @@
           ],
           "modelId": "apac.amazon.nova-lite-v1:0",
           "embeddingModelId": "cohere.embed-english-v3",
+          "retrievalMode": "embedding",
+          "minSimilarityScore": 0.25,
           "status": "completed"
         }
       },
@@ -104,7 +108,7 @@
       "response": {
         "httpStatusCode": 200,
         "body": {
-          "requestId": "2565e0d8-950e-4254-ba76-9695eb52834a",
+          "requestId": "d4c93140-837e-42b1-81d4-9458f6967d94",
           "answer": "API Gateway protects backend services through features such as routing, throttling, authorization, and request validation. It can also integrate with AWS services for additional security measures.\n\nSources:\n- documentId=api-gateway-note, chunkId=chunk-0001",
           "sources": [
             {
@@ -117,6 +121,8 @@
           ],
           "modelId": "apac.amazon.nova-lite-v1:0",
           "embeddingModelId": "cohere.embed-english-v3",
+          "retrievalMode": "embedding",
+          "minSimilarityScore": 0.25,
           "status": "completed"
         }
       },
@@ -139,20 +145,14 @@
       "response": {
         "httpStatusCode": 200,
         "body": {
-          "requestId": "272cdf8d-8551-4eb4-b9f2-7ec6a6144de0",
+          "requestId": "cab2b95f-b132-4c6b-b609-f936a364bbf8",
           "answer": "I do not know based on the available documents.",
-          "sources": [
-            {
-              "documentId": "api-gateway-note",
-              "chunkId": "chunk-0001",
-              "title": "API Gateway Note",
-              "chunkIndex": 0,
-              "similarity": 0.0067
-            }
-          ],
+          "sources": [],
           "modelId": "apac.amazon.nova-lite-v1:0",
           "embeddingModelId": "cohere.embed-english-v3",
-          "status": "completed"
+          "retrievalMode": "embedding",
+          "minSimilarityScore": 0.25,
+          "status": "no_source"
         }
       },
       "pass": true,
