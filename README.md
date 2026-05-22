@@ -1,6 +1,6 @@
 # AWS AI Platform PoC
 
-This repository contains a minimal AWS backend foundation for an AI platform, now extended through Phase 4B with a mini RAG flow that stores document embeddings in DynamoDB, filters eligible chunks by metadata boundaries, validates requested retrieval scope against a simple caller policy, filters weak matches with a similarity threshold, and performs grounded Amazon Bedrock inference only when retrieval is strong enough.
+This repository contains a minimal AWS backend foundation for an AI platform, now extended through Phase 4C with a mini RAG flow that stores document embeddings in DynamoDB, filters eligible chunks by metadata boundaries, validates requested retrieval scope against a simple caller policy, applies AWS-side throttling and concurrency protections, filters weak matches with a similarity threshold, and performs grounded Amazon Bedrock inference only when retrieval is strong enough.
 
 ## Why this foundation exists
 
@@ -73,6 +73,8 @@ Phase 3D hardens the retrieval step with `MIN_SIMILARITY_SCORE`, defaulting to `
 Phase 4A adds metadata boundaries. Documents can now carry `projectId`, `customerId`, and `documentType`, and `/rag/query` can apply those filters before similarity scoring so retrieval stays inside the intended document scope.
 
 Phase 4B adds a retrieval policy gate. `/rag/query` now resolves a caller access context from request headers and rejects disallowed `projectId` or `customerId` scopes before metadata filtering or embedding retrieval starts.
+
+Phase 4C adds backend protection controls in infrastructure. API Gateway stage throttling now caps request rate before Lambda is invoked. Reserved concurrency remains a recommended control for expensive Lambdas, but it is not enabled by default in this learning template because small AWS accounts may have low concurrency quota.
 
 ## Endpoints
 
@@ -364,6 +366,28 @@ This learning PoC uses headers only:
 If the user header is missing, the handler defaults to `anonymous`. If the allowed-scope headers are missing, the PoC defaults to `default` scope lists. `documentType` is still used for metadata filtering, but it is not access-controlled in this phase.
 
 This is intentionally not production-grade authorization. In production, replace these learning headers with a real authorization layer such as Cognito and JWT claims, IAM-backed identity propagation, OPA or Cedar-based policy evaluation, or another application authorization service.
+
+## Phase 4C - API Throttling and Reserved Concurrency
+
+Lambda already scales automatically, which is useful for normal traffic but dangerous for AI and RAG endpoints when requests become abusive or accidentally spike. In this PoC, `/chat`, `/documents`, and especially `/rag/query` can trigger Bedrock calls and DynamoDB activity, so unlimited scale would translate directly into higher cost and more pressure on downstream services.
+
+Phase 4C adds API Gateway stage throttling directly in the template, and it documents reserved concurrency as a follow-on protection control to enable only after checking account quota.
+
+- API Gateway stage throttling applies a default rate and burst limit across methods. When traffic exceeds that limit, API Gateway returns HTTP `429` before Lambda is invoked.
+- Lambda reserved concurrency can cap the number of concurrent executions for the expensive AI paths so they cannot consume unbounded concurrency.
+
+Reserved concurrency is especially important for `/rag/query` because that path can combine embedding generation, DynamoDB scan-based retrieval, and Bedrock Converse in a single request. When enabled, it helps protect Bedrock throughput, DynamoDB load, and the overall cost budget for this learning environment.
+
+The template keeps these API Gateway throttling parameters exposed so the PoC stays easy to tune:
+
+- `ApiStageThrottleRateLimit` default `10`
+- `ApiStageThrottleBurstLimit` default `20`
+
+Reserved concurrency is intentionally not enabled by default in this learning template. The observed learning case was an account with Lambda concurrency quota `10`, while the attempted reserved concurrency total was `13` across Chat, Documents, and RagQuery, which caused CloudFormation rollback during deployment.
+
+Enable reserved concurrency later only after confirming your account quota or after requesting a quota increase.
+
+This is still only a first protection layer. Production systems should also consider AWS WAF, usage plans and API keys where appropriate, real authentication, per-user or per-tenant rate limits, cost budgets, and CloudWatch alarms.
 
 ## Local test payload
 

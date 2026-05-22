@@ -15,6 +15,14 @@ Parameters:
     Type: String
     Default: dev
     Description: Deployment environment name used to namespace shared resources.
+  ApiStageThrottleRateLimit:
+    Type: Number
+    Default: 10
+    Description: Steady-state requests per second for API Gateway stage throttling.
+  ApiStageThrottleBurstLimit:
+    Type: Number
+    Default: 20
+    Description: Burst limit for API Gateway stage throttling.
 
 Resources:
   ApiGateway:
@@ -22,6 +30,11 @@ Resources:
     Properties:
       StageName: v1
       Name: aws-ai-platform-api
+      MethodSettings:
+        - ResourcePath: "/*"
+          HttpMethod: "*"
+          ThrottlingRateLimit: !Ref ApiStageThrottleRateLimit
+          ThrottlingBurstLimit: !Ref ApiStageThrottleBurstLimit
 
   AiPlatformRequestTrace:
     Type: AWS::DynamoDB::Table
@@ -200,6 +213,14 @@ Outputs:
   ApiBaseUrl:
     Description: Base invoke URL for the deployed API stage.
     Value: !Sub https://${ApiGateway}.execute-api.${AWS::Region}.amazonaws.com/v1
+
+  ApiStageThrottleRateLimit:
+    Description: Configured API Gateway steady-state throttling rate limit.
+    Value: !Ref ApiStageThrottleRateLimit
+
+  ApiStageThrottleBurstLimit:
+    Description: Configured API Gateway burst throttling limit.
+    Value: !Ref ApiStageThrottleBurstLimit
 
   TraceTableName:
     Description: DynamoDB table storing request traces.
