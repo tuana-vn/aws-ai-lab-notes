@@ -1,6 +1,6 @@
 # AWS AI Platform PoC
 
-This repository contains a minimal AWS backend foundation for an AI platform, now extended through Phase 5B with a mini RAG flow that stores document embeddings in DynamoDB, filters eligible chunks by metadata boundaries, validates requested retrieval scope against a simple caller policy, applies AWS-side throttling protections, blocks unsafe input patterns before retrieval, filters weak matches with a similarity threshold, and performs grounded Amazon Bedrock inference only when retrieval is strong enough.
+This repository contains a minimal AWS backend foundation for an AI platform, now extended through Phase 5D with a mini RAG flow that stores document embeddings in DynamoDB, filters eligible chunks by metadata boundaries, validates requested retrieval scope against a simple caller policy, applies AWS-side throttling protections, blocks unsafe input patterns before retrieval, filters weak matches with a similarity threshold, and performs grounded Amazon Bedrock inference only when retrieval is strong enough.
 
 ## Why this foundation exists
 
@@ -54,6 +54,8 @@ aws-ai-platform-poc/
       template.yaml
   scripts/
     run_rag_eval.py
+    get_lambda_log_groups.py
+    query_logs.py
     view_trace.py
     view_eval_trace.py
   test-data/
@@ -437,6 +439,31 @@ For learning scenarios:
 - `Q007` and `Q008` should show input guardrail blocked behavior
 - `Q009` should show output guardrail observation behavior
 - `Q006` policy-denied may not have a `requestId`, depending on implementation, so the helper may report that no trace lookup is available
+
+## Phase 5D - CloudWatch Logs Insights and Runtime Observability
+
+DynamoDB trace is useful when you want to inspect one specific request. CloudWatch Logs Insights is useful when you want runtime aggregation across many requests, such as blocked requests, `no_source` traffic, latency trends, or errors over time.
+
+Phase 5D adds two local helper scripts:
+
+- `scripts/query_logs.py` runs CloudWatch Logs Insights preset queries through the AWS CLI
+- `scripts/get_lambda_log_groups.py` lists Lambda function names and their log groups for a stack
+
+Use `query_logs.py` to inspect runtime patterns such as blocked guardrail requests, `no_source` requests, errors, latency summaries, and guardrail counts. Use `get_lambda_log_groups.py` when you need the correct log group name for a Lambda before running a Logs Insights query.
+
+Example commands:
+
+```bash
+python3 scripts/get_lambda_log_groups.py --stack-name aws-ai-platform-poc-dev
+python3 scripts/query_logs.py --log-group "/aws/lambda/<rag-query-function-name>" --preset summary
+python3 scripts/query_logs.py --log-group "/aws/lambda/<rag-query-function-name>" --preset blocked
+python3 scripts/query_logs.py --log-group "/aws/lambda/<rag-query-function-name>" --preset no-source
+python3 scripts/query_logs.py --log-group "/aws/lambda/<rag-query-function-name>" --preset errors
+python3 scripts/query_logs.py --log-group "/aws/lambda/<rag-query-function-name>" --preset latency
+python3 scripts/query_logs.py --log-group "/aws/lambda/<rag-query-function-name>" --preset guardrails
+```
+
+If Logs Insights does not automatically parse the structured JSON fields the way you expect, use the `raw` preset first to inspect `@message` directly and confirm what CloudWatch is extracting.
 
 ## Local test payload
 
