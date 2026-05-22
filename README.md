@@ -1,6 +1,6 @@
 # AWS AI Platform PoC
 
-This repository contains a minimal AWS backend foundation for an AI platform, now extended through Phase 5A with a mini RAG flow that stores document embeddings in DynamoDB, filters eligible chunks by metadata boundaries, validates requested retrieval scope against a simple caller policy, applies AWS-side throttling protections, blocks unsafe input patterns before retrieval, filters weak matches with a similarity threshold, and performs grounded Amazon Bedrock inference only when retrieval is strong enough.
+This repository contains a minimal AWS backend foundation for an AI platform, now extended through Phase 5B with a mini RAG flow that stores document embeddings in DynamoDB, filters eligible chunks by metadata boundaries, validates requested retrieval scope against a simple caller policy, applies AWS-side throttling protections, blocks unsafe input patterns before retrieval, filters weak matches with a similarity threshold, and performs grounded Amazon Bedrock inference only when retrieval is strong enough.
 
 ## Why this foundation exists
 
@@ -400,6 +400,16 @@ Phase 5A adds a simple learning PoC guardrail that uses case-insensitive pattern
 This is intentionally simple and readable. It is useful for understanding where an application guardrail belongs in the request flow, but it is not strong enough for production by itself.
 
 Production systems should combine stronger controls such as Bedrock Guardrails, policy engines, classification models, PII detection, monitoring, alerting, and human review for risky or high-impact actions.
+
+## Phase 5B - Output Guardrail and Answer Validation
+
+Input guardrails check the user request before retrieval starts. Output guardrails check the model answer after generation. These solve different problems: the input guardrail is about stopping unsafe requests early, while the output guardrail is about checking whether the returned answer still looks acceptable after the model has already generated it.
+
+Phase 5B adds a simple output validation step for `/rag/query`. After Bedrock returns an answer, the handler evaluates whether the answer is empty or whether it appears to omit source references even though retrieved sources were provided. In this learning PoC, the output guardrail only warns. It does not block the response yet.
+
+This keeps the behavior easy to observe during evaluation. The response and trace now include output guardrail metadata so you can see when an answer looks grounded versus when it should be reviewed more carefully.
+
+Production systems can enforce stricter validation, stronger citation requirements, Bedrock Guardrails, model-based output review, or human approval workflows for sensitive actions.
 
 ## Local test payload
 

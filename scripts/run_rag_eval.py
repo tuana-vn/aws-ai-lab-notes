@@ -108,6 +108,20 @@ def _format_filters_for_markdown(response_body):
     return ", ".join(f"{key}={value}" for key, value in filters.items())
 
 
+def _format_output_guardrail_for_markdown(response_body):
+    output_guardrail = response_body.get("outputGuardrail", {})
+    if not isinstance(output_guardrail, dict) or not output_guardrail:
+        return "-"
+
+    warnings = output_guardrail.get("warnings", [])
+    warnings_text = ", ".join(str(item) for item in warnings) if warnings else "-"
+    return (
+        f"action={output_guardrail.get('action', '-')}, "
+        f"reason={output_guardrail.get('reason', '-')}, "
+        f"warnings={warnings_text}"
+    )
+
+
 def _answer_contains_any_keyword(answer, keywords):
     normalized_answer = _normalize_text(answer)
     for keyword in keywords:
@@ -131,7 +145,7 @@ def _evaluate_case(case_definition, response):
             f"expected HTTP {expected_http_status_code} but got {response.get('httpStatusCode')}"
         )
 
-    if case_type in {"in_source", "semantic"}:
+    if case_type in {"in_source", "semantic", "output_guardrail_observation"}:
         expected_status = case_definition.get("expectedStatus")
         expected_document_id = case_definition.get("expectedDocumentId")
         expected_keywords = case_definition.get("expectedAnswerKeywords", [])
@@ -144,10 +158,12 @@ def _evaluate_case(case_definition, response):
             notes.append(f"expected status '{expected_status}' but got '{response_status}'")
         if not has_expected_source:
             notes.append(f"expected source '{expected_document_id}' not found")
-        if not has_expected_keyword:
+        if expected_keywords and not has_expected_keyword:
             notes.append("answer did not contain any expected keyword")
 
-        passed = status_matches and has_expected_source and has_expected_keyword
+        passed = status_matches and has_expected_source and (
+            has_expected_keyword if expected_keywords else True
+        )
     elif case_type in {"out_of_source", "metadata_boundary"}:
         normalized_answer = _normalize_text(answer)
         no_answer_detected = NO_ANSWER_TEXT.casefold() in normalized_answer
@@ -262,8 +278,8 @@ def _write_markdown_report(api_base_url, started_at, results):
         f"- passed cases: {passed_cases}",
         f"- failed cases: {failed_cases}",
         "",
-        "| Case ID | Type | HTTP | Status | Question | Filters | Sources | Min Similarity | Pass/Fail | Notes |",
-        "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
+        "| Case ID | Type | HTTP | Status | Question | Filters | Sources | Min Similarity | Output Guardrail | Pass/Fail | Notes |",
+        "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
     ]
 
     for result in results:
@@ -273,11 +289,12 @@ def _write_markdown_report(api_base_url, started_at, results):
         filters = _format_filters_for_markdown(response_body)
         sources = _format_sources_for_markdown(response_body)
         min_similarity_score = response_body.get("minSimilarityScore", "-")
+        output_guardrail = _format_output_guardrail_for_markdown(response_body)
         pass_fail = "PASS" if result["pass"] else "FAIL"
         question = str(result["question"]).replace("|", "\\|")
         notes = str(result["notes"]).replace("|", "\\|")
         lines.append(
-            f"| {result['caseId']} | {result['type']} | {http_status_code} | {status} | {question} | {filters} | {sources} | {min_similarity_score} | {pass_fail} | {notes} |"
+            f"| {result['caseId']} | {result['type']} | {http_status_code} | {status} | {question} | {filters} | {sources} | {min_similarity_score} | {output_guardrail} | {pass_fail} | {notes} |"
         )
 
     lines.extend(["", "## Answer Snippets", ""])
@@ -288,6 +305,7 @@ def _write_markdown_report(api_base_url, started_at, results):
         filters = _format_filters_for_markdown(response_body)
         sources = _format_sources_for_markdown(response_body)
         min_similarity_score = response_body.get("minSimilarityScore", "-")
+        output_guardrail = _format_output_guardrail_for_markdown(response_body)
         lines.extend(
             [
                 f"### {result['caseId']}",
@@ -303,6 +321,8 @@ def _write_markdown_report(api_base_url, started_at, results):
                 f"Sources: {sources}",
                 "",
                 f"Min Similarity Score: {min_similarity_score}",
+                "",
+                f"Output Guardrail: {output_guardrail}",
                 "",
                 f"Answer: {_answer_snippet(answer) or '-'}",
                 "",

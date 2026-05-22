@@ -10,6 +10,7 @@ from common.document_repository import DocumentRepository
 from common.embedding_client import EmbeddingClient, EmbeddingInvocationError
 from common.guardrails import evaluate_input_guardrail
 from common.logging import get_logger, log_json
+from common.output_guardrails import evaluate_output_guardrail
 from common.policy import AccessDeniedError, assert_filters_allowed, resolve_access_context
 from common.response import json_response
 from common.retrieval import retrieve_top_chunks
@@ -28,6 +29,11 @@ FILTER_FIELD_MAP = {
     "projectId": "project_id",
     "customerId": "customer_id",
     "documentType": "document_type",
+}
+NO_MODEL_ANSWER_OUTPUT_GUARDRAIL = {
+    "action": "not_applicable",
+    "reason": "no_model_answer",
+    "warnings": [],
 }
 
 
@@ -158,6 +164,7 @@ def _build_no_source_response(request_id, user_id, filters, guardrail_result):
             "reason": guardrail_result["reason"],
             "matchedRule": guardrail_result["matchedRule"],
         },
+        "outputGuardrail": dict(NO_MODEL_ANSWER_OUTPUT_GUARDRAIL),
         "status": "no_source",
     }
 
@@ -175,6 +182,7 @@ def _build_blocked_response(request_id, guardrail_result):
             "reason": guardrail_result["reason"],
             "matchedRule": guardrail_result["matchedRule"],
         },
+        "outputGuardrail": dict(NO_MODEL_ANSWER_OUTPUT_GUARDRAIL),
         "status": "blocked",
     }
 
@@ -186,6 +194,7 @@ def _build_trace_record(
     question,
     filters,
     guardrail_result,
+    output_guardrail_result,
     eligible_chunk_count,
     answer_preview,
     sources,
@@ -203,6 +212,9 @@ def _build_trace_record(
         "guardrail_action": guardrail_result["action"],
         "guardrail_reason": guardrail_result["reason"],
         "guardrail_matched_rule": guardrail_result["matchedRule"],
+        "output_guardrail_action": output_guardrail_result["action"],
+        "output_guardrail_reason": output_guardrail_result["reason"],
+        "output_guardrail_warnings": output_guardrail_result["warnings"],
         "model_id": BEDROCK_MODEL_ID,
         "embedding_model_id": EMBEDDING_MODEL_ID,
         "retrieval_mode": RETRIEVAL_MODE,
@@ -240,6 +252,7 @@ def lambda_handler(event, context):
         access_context = resolve_access_context(event)
         user_id = access_context["user_id"]
         guardrail_result = evaluate_input_guardrail(question)
+        output_guardrail_result = dict(NO_MODEL_ANSWER_OUTPUT_GUARDRAIL)
 
         if not guardrail_result["allowed"]:
             latency_ms = int((perf_counter() - started_at) * 1000)
@@ -251,6 +264,7 @@ def lambda_handler(event, context):
                     question,
                     filters,
                     guardrail_result,
+                    output_guardrail_result,
                     0,
                     BLOCKED_ANSWER,
                     [],
@@ -269,6 +283,9 @@ def lambda_handler(event, context):
                 guardrail_action=guardrail_result["action"],
                 guardrail_reason=guardrail_result["reason"],
                 guardrail_matched_rule=guardrail_result["matchedRule"],
+                output_guardrail_action=output_guardrail_result["action"],
+                output_guardrail_reason=output_guardrail_result["reason"],
+                output_guardrail_warnings=output_guardrail_result["warnings"],
                 status="blocked",
             )
             return json_response(200, _build_blocked_response(request_id, guardrail_result))
@@ -285,6 +302,9 @@ def lambda_handler(event, context):
                 guardrail_action=guardrail_result["action"],
                 guardrail_reason=guardrail_result["reason"],
                 guardrail_matched_rule=guardrail_result["matchedRule"],
+                output_guardrail_action=output_guardrail_result["action"],
+                output_guardrail_reason=output_guardrail_result["reason"],
+                output_guardrail_warnings=output_guardrail_result["warnings"],
                 status="unscoped_request",
             )
 
@@ -314,6 +334,7 @@ def lambda_handler(event, context):
                     question,
                     filters,
                     guardrail_result,
+                    output_guardrail_result,
                     eligible_chunk_count,
                     NO_SOURCE_ANSWER,
                     [],
@@ -336,6 +357,9 @@ def lambda_handler(event, context):
                 guardrail_action=guardrail_result["action"],
                 guardrail_reason=guardrail_result["reason"],
                 guardrail_matched_rule=guardrail_result["matchedRule"],
+                output_guardrail_action=output_guardrail_result["action"],
+                output_guardrail_reason=output_guardrail_result["reason"],
+                output_guardrail_warnings=output_guardrail_result["warnings"],
                 eligible_chunk_count=eligible_chunk_count,
                 latency_ms=latency_ms,
                 source_count=0,
@@ -345,6 +369,7 @@ def lambda_handler(event, context):
 
         prompt = _build_grounded_prompt(question, top_chunks)
         answer = BedrockClient().converse(BEDROCK_MODEL_ID, prompt)
+        output_guardrail_result = evaluate_output_guardrail(answer, sources)
         latency_ms = int((perf_counter() - started_at) * 1000)
 
         trace_record = _build_trace_record(
@@ -354,6 +379,7 @@ def lambda_handler(event, context):
             question,
             filters,
             guardrail_result,
+            output_guardrail_result,
             eligible_chunk_count,
             answer,
             sources,
@@ -377,6 +403,9 @@ def lambda_handler(event, context):
             guardrail_action=guardrail_result["action"],
             guardrail_reason=guardrail_result["reason"],
             guardrail_matched_rule=guardrail_result["matchedRule"],
+            output_guardrail_action=output_guardrail_result["action"],
+            output_guardrail_reason=output_guardrail_result["reason"],
+            output_guardrail_warnings=output_guardrail_result["warnings"],
             eligible_chunk_count=eligible_chunk_count,
             latency_ms=latency_ms,
             source_count=len(sources),
@@ -400,6 +429,7 @@ def lambda_handler(event, context):
                     "reason": guardrail_result["reason"],
                     "matchedRule": guardrail_result["matchedRule"],
                 },
+                "outputGuardrail": output_guardrail_result,
                 "status": "completed",
             },
         )
@@ -415,6 +445,9 @@ def lambda_handler(event, context):
             guardrail_action=locals().get("guardrail_result", {}).get("action"),
             guardrail_reason=locals().get("guardrail_result", {}).get("reason"),
             guardrail_matched_rule=locals().get("guardrail_result", {}).get("matchedRule"),
+            output_guardrail_action=locals().get("output_guardrail_result", {}).get("action"),
+            output_guardrail_reason=locals().get("output_guardrail_result", {}).get("reason"),
+            output_guardrail_warnings=locals().get("output_guardrail_result", {}).get("warnings"),
             status="denied",
             error=str(exc),
         )
@@ -438,6 +471,9 @@ def lambda_handler(event, context):
             guardrail_action=locals().get("guardrail_result", {}).get("action"),
             guardrail_reason=locals().get("guardrail_result", {}).get("reason"),
             guardrail_matched_rule=locals().get("guardrail_result", {}).get("matchedRule"),
+            output_guardrail_action=locals().get("output_guardrail_result", {}).get("action"),
+            output_guardrail_reason=locals().get("output_guardrail_result", {}).get("reason"),
+            output_guardrail_warnings=locals().get("output_guardrail_result", {}).get("warnings"),
             eligible_chunk_count=eligible_chunk_count,
             latency_ms=latency_ms,
             source_count=source_count,
@@ -464,6 +500,9 @@ def lambda_handler(event, context):
                     "guardrail_action": locals().get("guardrail_result", {}).get("action"),
                     "guardrail_reason": locals().get("guardrail_result", {}).get("reason"),
                     "guardrail_matched_rule": locals().get("guardrail_result", {}).get("matchedRule"),
+                    "output_guardrail_action": locals().get("output_guardrail_result", {}).get("action"),
+                    "output_guardrail_reason": locals().get("output_guardrail_result", {}).get("reason"),
+                    "output_guardrail_warnings": locals().get("output_guardrail_result", {}).get("warnings"),
                     "eligible_chunk_count": eligible_chunk_count,
                     "latency_ms": latency_ms,
                     "source_count": source_count,

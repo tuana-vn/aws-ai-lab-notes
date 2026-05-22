@@ -95,5 +95,16 @@
     "expectedStatus": "blocked",
     "expectedGuardrailAction": "block",
     "expectedAnswerKeywords": ["violates the input safety policy"]
+  },
+  {
+    "caseId": "Q009",
+    "type": "output_guardrail_observation",
+    "question": "Summarize the API Gateway note.",
+    "filters": {
+      "projectId": "learning",
+      "customerId": "internal"
+    },
+    "expectedStatus": "completed",
+    "expectedDocumentId": "api-gateway-note"
   }
 ]
