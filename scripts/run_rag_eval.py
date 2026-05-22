@@ -11,6 +11,11 @@ REPORTS_DIR = Path("reports")
 RAW_RESULTS_PATH = REPORTS_DIR / "rag-eval-results.json"
 MARKDOWN_REPORT_PATH = REPORTS_DIR / "rag-eval-report.md"
 NO_ANSWER_TEXT = "I do not know based on the available documents"
+DEFAULT_REQUEST_HEADERS = {
+    "X-User-Id": "user-learning",
+    "X-Allowed-Project-Ids": "learning",
+    "X-Allowed-Customer-Ids": "internal",
+}
 
 
 def _require_api_base_url():
@@ -26,12 +31,16 @@ def _load_json(path):
         return json.load(file_handle)
 
 
-def _post_json(url, payload):
+def _post_json(url, payload, headers=None):
     body = json.dumps(payload).encode("utf-8")
+    request_headers = {"Content-Type": "application/json"}
+    if isinstance(headers, dict):
+        request_headers.update(headers)
+
     http_request = request.Request(
         url,
         data=body,
-        headers={"Content-Type": "application/json"},
+        headers=request_headers,
         method="POST",
     )
 
@@ -115,6 +124,12 @@ def _evaluate_case(case_definition, response):
     source_document_ids = _extract_source_document_ids(response_body)
     notes = []
     case_type = case_definition.get("type")
+    expected_http_status_code = case_definition.get("expectedHttpStatusCode", 200)
+
+    if response.get("httpStatusCode") != expected_http_status_code:
+        notes.append(
+            f"expected HTTP {expected_http_status_code} but got {response.get('httpStatusCode')}"
+        )
 
     if case_type in {"in_source", "semantic"}:
         expected_status = case_definition.get("expectedStatus")
@@ -151,12 +166,27 @@ def _evaluate_case(case_definition, response):
         passed = no_answer_detected and no_source_status and (
             no_sources_returned if expected_sources_empty else True
         )
+    elif case_type == "policy_denied":
+        expected_error_message = case_definition.get("expectedErrorMessage", "")
+        actual_message = response_body.get("message", "")
+        has_expected_error = _normalize_text(expected_error_message) in _normalize_text(actual_message)
+        answer_generated = "answer" in response_body and bool(response_body.get("answer"))
+
+        if not has_expected_error:
+            notes.append("response did not contain the expected access denied message")
+        if answer_generated:
+            notes.append("expected no answer to be generated for denied request")
+
+        passed = has_expected_error and not answer_generated
     else:
         notes.append(f"unsupported case type '{case_type}'")
         passed = False
 
-    if response.get("httpStatusCode", 0) >= 400:
+    if response.get("httpStatusCode", 0) >= 400 and case_type != "policy_denied":
         notes.append(f"HTTP {response['httpStatusCode']}")
+        passed = False
+
+    if response.get("httpStatusCode") != expected_http_status_code:
         passed = False
 
     return {
@@ -206,12 +236,13 @@ def _write_markdown_report(api_base_url, started_at, results):
         f"- passed cases: {passed_cases}",
         f"- failed cases: {failed_cases}",
         "",
-        "| Case ID | Type | Question | Status | Filters | Sources | Min Similarity | Pass/Fail | Notes |",
-        "| --- | --- | --- | --- | --- | --- | --- | --- | --- |",
+        "| Case ID | Type | HTTP | Status | Question | Filters | Sources | Min Similarity | Pass/Fail | Notes |",
+        "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
     ]
 
     for result in results:
         response_body = result["response"].get("body", {})
+        http_status_code = result["response"].get("httpStatusCode", "-")
         status = response_body.get("status", "-")
         filters = _format_filters_for_markdown(response_body)
         sources = _format_sources_for_markdown(response_body)
@@ -220,7 +251,7 @@ def _write_markdown_report(api_base_url, started_at, results):
         question = str(result["question"]).replace("|", "\\|")
         notes = str(result["notes"]).replace("|", "\\|")
         lines.append(
-            f"| {result['caseId']} | {result['type']} | {question} | {status} | {filters} | {sources} | {min_similarity_score} | {pass_fail} | {notes} |"
+            f"| {result['caseId']} | {result['type']} | {http_status_code} | {status} | {question} | {filters} | {sources} | {min_similarity_score} | {pass_fail} | {notes} |"
         )
 
     lines.extend(["", "## Answer Snippets", ""])
@@ -234,6 +265,8 @@ def _write_markdown_report(api_base_url, started_at, results):
         lines.extend(
             [
                 f"### {result['caseId']}",
+                "",
+                f"HTTP Status: {result['response'].get('httpStatusCode', '-')}",
                 "",
                 f"Question: {result['question']}",
                 "",
@@ -277,9 +310,14 @@ def main():
         if isinstance(case_definition.get("filters"), dict):
             request_payload["filters"] = case_definition["filters"]
 
+        request_headers = dict(DEFAULT_REQUEST_HEADERS)
+        if isinstance(case_definition.get("headers"), dict):
+            request_headers.update(case_definition["headers"])
+
         response = _post_json(
             f"{api_base_url}/rag/query",
             request_payload,
+            headers=request_headers,
         )
         results.append(_evaluate_case(case_definition, response))
 

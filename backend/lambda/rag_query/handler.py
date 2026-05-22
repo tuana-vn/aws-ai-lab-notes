@@ -9,6 +9,7 @@ from common.bedrock_client import BedrockClient, BedrockInvocationError
 from common.document_repository import DocumentRepository
 from common.embedding_client import EmbeddingClient, EmbeddingInvocationError
 from common.logging import get_logger, log_json
+from common.policy import AccessDeniedError, assert_filters_allowed, resolve_access_context
 from common.response import json_response
 from common.retrieval import retrieve_top_chunks
 from common.trace_repository import TraceRepository
@@ -139,9 +140,10 @@ def _serialize_sources_for_trace(sources):
     ]
 
 
-def _build_no_source_response(request_id, filters):
+def _build_no_source_response(request_id, user_id, filters):
     return {
         "requestId": request_id,
+        "userId": user_id,
         "answer": NO_SOURCE_ANSWER,
         "sources": [],
         "modelId": BEDROCK_MODEL_ID,
@@ -156,6 +158,7 @@ def _build_no_source_response(request_id, filters):
 def _build_trace_record(
     request_id,
     path,
+    user_id,
     question,
     filters,
     eligible_chunk_count,
@@ -168,6 +171,7 @@ def _build_trace_record(
         "request_id": request_id,
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "path": path,
+        "user_id": user_id,
         "question": question,
         "filters": filters,
         "answer_preview": answer_preview[:500],
@@ -205,6 +209,23 @@ def lambda_handler(event, context):
     try:
         question = request_payload["question"]
         filters = request_payload["filters"]
+        access_context = resolve_access_context(event)
+        user_id = access_context["user_id"]
+
+        if "projectId" not in filters and "customerId" not in filters:
+            log_json(
+                LOGGER,
+                logging.INFO,
+                "rag query missing explicit scope filters",
+                request_id=request_id,
+                path=path,
+                user_id=user_id,
+                filters=filters,
+                status="unscoped_request",
+            )
+
+        assert_filters_allowed(filters, access_context)
+
         repository = DocumentRepository(DOCUMENT_CHUNKS_TABLE_NAME)
         chunks = repository.list_chunks()
         eligible_chunks = _filter_chunks_by_metadata(chunks, filters)
@@ -225,6 +246,7 @@ def lambda_handler(event, context):
                 _build_trace_record(
                     request_id,
                     path,
+                    user_id,
                     question,
                     filters,
                     eligible_chunk_count,
@@ -240,6 +262,7 @@ def lambda_handler(event, context):
                 "rag query returned no source",
                 request_id=request_id,
                 path=path,
+                user_id=user_id,
                 model_id=BEDROCK_MODEL_ID,
                 embedding_model_id=EMBEDDING_MODEL_ID,
                 retrieval_mode=RETRIEVAL_MODE,
@@ -250,7 +273,7 @@ def lambda_handler(event, context):
                 source_count=0,
                 status="no_source",
             )
-            return json_response(200, _build_no_source_response(request_id, filters))
+            return json_response(200, _build_no_source_response(request_id, user_id, filters))
 
         prompt = _build_grounded_prompt(question, top_chunks)
         answer = BedrockClient().converse(BEDROCK_MODEL_ID, prompt)
@@ -259,6 +282,7 @@ def lambda_handler(event, context):
         trace_record = _build_trace_record(
             request_id,
             path,
+            user_id,
             question,
             filters,
             eligible_chunk_count,
@@ -275,6 +299,7 @@ def lambda_handler(event, context):
             "rag query completed",
             request_id=request_id,
             path=path,
+            user_id=user_id,
             model_id=BEDROCK_MODEL_ID,
             embedding_model_id=EMBEDDING_MODEL_ID,
             retrieval_mode=RETRIEVAL_MODE,
@@ -290,6 +315,7 @@ def lambda_handler(event, context):
             200,
             {
                 "requestId": request_id,
+                "userId": user_id,
                 "answer": answer,
                 "sources": sources,
                 "modelId": BEDROCK_MODEL_ID,
@@ -300,6 +326,19 @@ def lambda_handler(event, context):
                 "status": "completed",
             },
         )
+    except AccessDeniedError as exc:
+        log_json(
+            LOGGER,
+            logging.WARNING,
+            "rag query access denied",
+            request_id=request_id,
+            path=path,
+            user_id=locals().get("user_id", "anonymous"),
+            filters=locals().get("filters", {}),
+            status="denied",
+            error=str(exc),
+        )
+        return json_response(403, {"message": str(exc)})
     except (EmbeddingInvocationError, BedrockInvocationError) as exc:
         latency_ms = int((perf_counter() - started_at) * 1000)
         source_count = len(locals().get("sources", []))
@@ -310,6 +349,7 @@ def lambda_handler(event, context):
             "rag invocation failed",
             request_id=request_id,
             path=path,
+            user_id=locals().get("user_id", "anonymous"),
             model_id=BEDROCK_MODEL_ID,
             embedding_model_id=EMBEDDING_MODEL_ID,
             retrieval_mode=RETRIEVAL_MODE,
@@ -332,6 +372,7 @@ def lambda_handler(event, context):
                 "request_id": request_id,
                 "extra_fields": {
                     "path": path,
+                    "user_id": locals().get("user_id", "anonymous"),
                     "model_id": BEDROCK_MODEL_ID,
                     "embedding_model_id": EMBEDDING_MODEL_ID,
                     "retrieval_mode": RETRIEVAL_MODE,

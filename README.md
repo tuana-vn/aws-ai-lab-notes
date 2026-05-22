@@ -1,6 +1,6 @@
 # AWS AI Platform PoC
 
-This repository contains a minimal AWS backend foundation for an AI platform, now extended through Phase 4A with a mini RAG flow that stores document embeddings in DynamoDB, filters eligible chunks by metadata boundaries, filters weak matches with a similarity threshold, and performs grounded Amazon Bedrock inference only when retrieval is strong enough.
+This repository contains a minimal AWS backend foundation for an AI platform, now extended through Phase 4B with a mini RAG flow that stores document embeddings in DynamoDB, filters eligible chunks by metadata boundaries, validates requested retrieval scope against a simple caller policy, filters weak matches with a similarity threshold, and performs grounded Amazon Bedrock inference only when retrieval is strong enough.
 
 ## Why this foundation exists
 
@@ -71,6 +71,8 @@ Phase 3C adds a local evaluation workflow that re-indexes a known document, runs
 Phase 3D hardens the retrieval step with `MIN_SIMILARITY_SCORE`, defaulting to `0.25`. Chunks below that threshold are treated as not grounded enough, so `/rag/query` returns a `no_source` result with an empty `sources` array instead of sending weak context to the LLM.
 
 Phase 4A adds metadata boundaries. Documents can now carry `projectId`, `customerId`, and `documentType`, and `/rag/query` can apply those filters before similarity scoring so retrieval stays inside the intended document scope.
+
+Phase 4B adds a retrieval policy gate. `/rag/query` now resolves a caller access context from request headers and rejects disallowed `projectId` or `customerId` scopes before metadata filtering or embedding retrieval starts.
 
 ## Endpoints
 
@@ -346,6 +348,22 @@ Phase 4A adds `projectId`, `customerId`, and `documentType` to indexed document 
 In `/rag/query`, metadata filtering happens before similarity search. That order matters: the system should first decide which chunks are allowed to participate, then rank only those eligible chunks by cosine similarity. Filtering after similarity would let out-of-bound documents influence the candidate set before the boundary is enforced.
 
 This is still a learning PoC. Production systems should combine metadata filtering with IAM or application authorization checks and with a retrieval engine that can enforce metadata predicates during indexed vector search, rather than relying on a full DynamoDB scan inside Lambda.
+
+## Phase 4B - Retrieval Policy Gate and Authorization Boundary
+
+Metadata filters alone are not enough because the backend should not blindly trust caller-provided scope values. Without a policy check, a caller could request `projectId` or `customerId` values outside its intended boundary and the system would still search that content if matching chunks exist.
+
+Phase 4B adds a simple authorization boundary before retrieval. The `/rag/query` flow now parses the question and filters, resolves caller access from HTTP headers, checks whether the requested `projectId` and `customerId` are allowed for that caller, and returns HTTP `403` if the requested scope is not permitted.
+
+This learning PoC uses headers only:
+
+- `X-User-Id`
+- `X-Allowed-Project-Ids`
+- `X-Allowed-Customer-Ids`
+
+If the user header is missing, the handler defaults to `anonymous`. If the allowed-scope headers are missing, the PoC defaults to `default` scope lists. `documentType` is still used for metadata filtering, but it is not access-controlled in this phase.
+
+This is intentionally not production-grade authorization. In production, replace these learning headers with a real authorization layer such as Cognito and JWT claims, IAM-backed identity propagation, OPA or Cedar-based policy evaluation, or another application authorization service.
 
 ## Local test payload
 

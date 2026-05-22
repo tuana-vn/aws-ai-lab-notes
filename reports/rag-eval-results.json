@@ -1,6 +1,6 @@
 {
   "apiBaseUrl": "https://dj4qxxa454.execute-api.ap-southeast-1.amazonaws.com/v1",
-  "timestamp": "2026-05-22T07:09:42.259661+00:00",
+  "timestamp": "2026-05-22T07:27:58.742435+00:00",
   "documentResponse": {
     "httpStatusCode": 200,
     "body": {
@@ -35,8 +35,9 @@
       "response": {
         "httpStatusCode": 200,
         "body": {
-          "requestId": "987949a3-3526-467d-80ef-a5b8589023aa",
-          "answer": "API Gateway helps developers create, publish, maintain, monitor, and secure APIs. It can handle routing, throttling, authorization, request validation, and integration with AWS services. (Source: documentId=api-gateway-note, chunkId=chunk-0001)",
+          "requestId": "28c670d5-890a-4f00-b9d8-a7af7fe753b5",
+          "userId": "user-learning",
+          "answer": "Amazon API Gateway helps developers create, publish, maintain, monitor, and secure APIs. It can act as the front door for applications to access backend services such as Lambda functions or container-based services. API Gateway can handle routing, throttling, authorization, request validation, and integration with AWS services. (Source: documentId=api-gateway-note, chunkId=chunk-0001)",
           "sources": [
             {
               "documentId": "api-gateway-note",
@@ -84,8 +85,9 @@
       "response": {
         "httpStatusCode": 200,
         "body": {
-          "requestId": "5210439b-8d21-4119-b370-2be93299dd84",
-          "answer": "API Gateway can limit excessive traffic through throttling. \n\n[Source: documentId=api-gateway-note, chunkId=chunk-0001]",
+          "requestId": "9df5afe4-012c-49f7-b979-2211633ca64c",
+          "userId": "user-learning",
+          "answer": "API Gateway can limit excessive traffic through throttling. Throttling allows you to control the number of requests per second (RPS) for your APIs.\n\n[Source: documentId=api-gateway-note, chunkId=chunk-0001]",
           "sources": [
             {
               "documentId": "api-gateway-note",
@@ -134,8 +136,9 @@
       "response": {
         "httpStatusCode": 200,
         "body": {
-          "requestId": "b9c2dd11-a14a-4608-b04c-a23f73c6eee9",
-          "answer": "API Gateway protects backend services through features such as routing, throttling, authorization, and request validation (documentId=api-gateway-note, chunkId=chunk-0001).",
+          "requestId": "a5873c8b-a5e0-4080-b41b-4c82faa3c9d7",
+          "userId": "user-learning",
+          "answer": "API Gateway protects backend services through features such as routing, throttling, authorization, and request validation. It can also integrate with AWS services for enhanced security.\n\n[Source: documentId=api-gateway-note, chunkId=chunk-0001]",
           "sources": [
             {
               "documentId": "api-gateway-note",
@@ -182,7 +185,8 @@
       "response": {
         "httpStatusCode": 200,
         "body": {
-          "requestId": "bd3a8a1e-2725-4a62-aee8-0276754ccf49",
+          "requestId": "094dabff-1a14-4238-8475-92d45f4072aa",
+          "userId": "user-learning",
           "answer": "I do not know based on the available documents.",
           "sources": [],
           "modelId": "apac.amazon.nova-lite-v1:0",
@@ -215,19 +219,38 @@
         "expectedSourcesEmpty": true
       },
       "response": {
-        "httpStatusCode": 200,
+        "httpStatusCode": 403,
         "body": {
-          "requestId": "e423fa0c-3b9e-450b-bdab-3acbca33a6ed",
-          "answer": "I do not know based on the available documents.",
-          "sources": [],
-          "modelId": "apac.amazon.nova-lite-v1:0",
-          "embeddingModelId": "cohere.embed-english-v3",
-          "retrievalMode": "embedding",
-          "minSimilarityScore": 0.25,
-          "filters": {
-            "projectId": "other-project"
-          },
-          "status": "no_source"
+          "message": "Access denied for requested retrieval scope."
+        }
+      },
+      "pass": false,
+      "notes": "expected HTTP 200 but got 403; response did not refuse the out-of-source question; expected status 'no_source' but got 'None'; HTTP 403"
+    },
+    {
+      "caseId": "Q006",
+      "type": "policy_denied",
+      "question": "What does API Gateway do?",
+      "expected": {
+        "caseId": "Q006",
+        "type": "policy_denied",
+        "question": "What does API Gateway do?",
+        "filters": {
+          "projectId": "learning",
+          "customerId": "internal"
+        },
+        "headers": {
+          "X-User-Id": "user-other",
+          "X-Allowed-Project-Ids": "other-project",
+          "X-Allowed-Customer-Ids": "other-customer"
+        },
+        "expectedHttpStatusCode": 403,
+        "expectedErrorMessage": "Access denied for requested retrieval scope."
+      },
+      "response": {
+        "httpStatusCode": 403,
+        "body": {
+          "message": "Access denied for requested retrieval scope."
         }
       },
       "pass": true,
