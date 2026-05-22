@@ -1,6 +1,6 @@
 # AWS AI Platform PoC
 
-This repository contains a minimal AWS backend foundation for an AI platform, now extended through Phase 4C with a mini RAG flow that stores document embeddings in DynamoDB, filters eligible chunks by metadata boundaries, validates requested retrieval scope against a simple caller policy, applies AWS-side throttling and concurrency protections, filters weak matches with a similarity threshold, and performs grounded Amazon Bedrock inference only when retrieval is strong enough.
+This repository contains a minimal AWS backend foundation for an AI platform, now extended through Phase 5A with a mini RAG flow that stores document embeddings in DynamoDB, filters eligible chunks by metadata boundaries, validates requested retrieval scope against a simple caller policy, applies AWS-side throttling protections, blocks unsafe input patterns before retrieval, filters weak matches with a similarity threshold, and performs grounded Amazon Bedrock inference only when retrieval is strong enough.
 
 ## Why this foundation exists
 
@@ -75,6 +75,8 @@ Phase 4A adds metadata boundaries. Documents can now carry `projectId`, `custome
 Phase 4B adds a retrieval policy gate. `/rag/query` now resolves a caller access context from request headers and rejects disallowed `projectId` or `customerId` scopes before metadata filtering or embedding retrieval starts.
 
 Phase 4C adds backend protection controls in infrastructure. API Gateway stage throttling now caps request rate before Lambda is invoked. Reserved concurrency remains a recommended control for expensive Lambdas, but it is not enabled by default in this learning template because small AWS accounts may have low concurrency quota.
+
+Phase 5A adds an application-level input guardrail for `/rag/query`. The request question is checked before policy gate, metadata filtering, embedding generation, retrieval, or Bedrock invocation so obvious prompt injection and unsafe data access attempts are blocked early.
 
 ## Endpoints
 
@@ -388,6 +390,16 @@ Reserved concurrency is intentionally not enabled by default in this learning te
 Enable reserved concurrency later only after confirming your account quota or after requesting a quota increase.
 
 This is still only a first protection layer. Production systems should also consider AWS WAF, usage plans and API keys where appropriate, real authentication, per-user or per-tenant rate limits, cost budgets, and CloudWatch alarms.
+
+## Phase 5A - Application Guardrails for `/rag/query`
+
+Application-level input guardrails are needed because some unsafe requests should be stopped before retrieval even begins. If a question is clearly attempting prompt injection or unsafe data access, the safest and cheapest behavior is to block it before policy checks, DynamoDB scan, embedding generation, or Bedrock calls.
+
+Phase 5A adds a simple learning PoC guardrail that uses case-insensitive pattern matching against the incoming question. It currently blocks obvious prompt injection phrases such as attempts to ignore instructions or reveal prompts, and it also blocks obvious unsafe data access requests such as asking for customer secrets or dumping all documents.
+
+This is intentionally simple and readable. It is useful for understanding where an application guardrail belongs in the request flow, but it is not strong enough for production by itself.
+
+Production systems should combine stronger controls such as Bedrock Guardrails, policy engines, classification models, PII detection, monitoring, alerting, and human review for risky or high-impact actions.
 
 ## Local test payload
 

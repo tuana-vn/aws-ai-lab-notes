@@ -178,6 +178,32 @@ def _evaluate_case(case_definition, response):
             notes.append("expected no answer to be generated for denied request")
 
         passed = has_expected_error and not answer_generated
+    elif case_type == "guardrail_blocked":
+        expected_status = case_definition.get("expectedStatus", "blocked")
+        expected_guardrail_action = case_definition.get("expectedGuardrailAction", "block")
+        expected_keywords = case_definition.get("expectedAnswerKeywords", [])
+        guardrail = response_body.get("guardrail", {})
+        guardrail_action = guardrail.get("action")
+        has_expected_keyword = _answer_contains_any_keyword(answer, expected_keywords)
+        sources_empty = not source_document_ids
+
+        if response_status != expected_status:
+            notes.append(f"expected status '{expected_status}' but got '{response_status}'")
+        if guardrail_action != expected_guardrail_action:
+            notes.append(
+                f"expected guardrail action '{expected_guardrail_action}' but got '{guardrail_action}'"
+            )
+        if not has_expected_keyword:
+            notes.append("blocked answer did not contain any expected keyword")
+        if not sources_empty:
+            notes.append("expected sources to be empty for blocked request")
+
+        passed = (
+            response_status == expected_status
+            and guardrail_action == expected_guardrail_action
+            and has_expected_keyword
+            and sources_empty
+        )
     else:
         notes.append(f"unsupported case type '{case_type}'")
         passed = False
