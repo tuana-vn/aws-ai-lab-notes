@@ -7,6 +7,7 @@ from uuid import uuid4
 
 from common.bedrock_client import BedrockClient, BedrockInvocationError
 from common.document_repository import DocumentRepository
+from common.embedding_client import EmbeddingClient, EmbeddingInvocationError
 from common.logging import get_logger, log_json
 from common.response import json_response
 from common.retrieval import retrieve_top_chunks
@@ -16,6 +17,8 @@ LOGGER = get_logger(__name__)
 DOCUMENT_CHUNKS_TABLE_NAME = os.environ.get("DOCUMENT_CHUNKS_TABLE_NAME", "")
 TRACE_TABLE_NAME = os.environ.get("TRACE_TABLE_NAME", "")
 BEDROCK_MODEL_ID = os.environ.get("BEDROCK_MODEL_ID", "apac.amazon.nova-lite-v1:0")
+EMBEDDING_MODEL_ID = os.environ.get("EMBEDDING_MODEL_ID", "cohere.embed-english-v3")
+RETRIEVAL_MODE = "embedding"
 NO_SOURCE_ANSWER = "I do not know based on the available documents."
 
 
@@ -73,8 +76,19 @@ def _serialize_sources(chunks):
             "chunkId": chunk["chunk_id"],
             "title": chunk["title"],
             "chunkIndex": int(chunk["chunk_index"]),
+            "similarity": round(float(chunk["similarity"]), 4),
         }
         for chunk in chunks
+    ]
+
+
+def _serialize_sources_for_trace(sources):
+    return [
+        {
+            **source,
+            "similarity": str(source["similarity"]),
+        }
+        for source in sources
     ]
 
 
@@ -100,7 +114,10 @@ def lambda_handler(event, context):
     try:
         repository = DocumentRepository(DOCUMENT_CHUNKS_TABLE_NAME)
         chunks = repository.list_chunks()
-        top_chunks = retrieve_top_chunks(question, chunks)
+        question_embedding = EmbeddingClient(EMBEDDING_MODEL_ID).embed_query(question)
+        # This scan-and-score approach is intentionally simple for a learning PoC.
+        # Production retrieval should use a proper vector store or Bedrock Knowledge Bases.
+        top_chunks = retrieve_top_chunks(question_embedding, chunks)
         sources = _serialize_sources(top_chunks)
 
         if not top_chunks:
@@ -113,6 +130,8 @@ def lambda_handler(event, context):
                     "question": question,
                     "answer_preview": NO_SOURCE_ANSWER[:500],
                     "model_id": BEDROCK_MODEL_ID,
+                    "embedding_model_id": EMBEDDING_MODEL_ID,
+                    "retrieval_mode": RETRIEVAL_MODE,
                     "source_count": 0,
                     "sources": [],
                     "status": "no_source",
@@ -126,6 +145,8 @@ def lambda_handler(event, context):
                 request_id=request_id,
                 path=path,
                 model_id=BEDROCK_MODEL_ID,
+                embedding_model_id=EMBEDDING_MODEL_ID,
+                retrieval_mode=RETRIEVAL_MODE,
                 latency_ms=latency_ms,
                 source_count=0,
                 status="no_source",
@@ -151,8 +172,10 @@ def lambda_handler(event, context):
             "question": question,
             "answer_preview": answer[:500],
             "model_id": BEDROCK_MODEL_ID,
+            "embedding_model_id": EMBEDDING_MODEL_ID,
+            "retrieval_mode": RETRIEVAL_MODE,
             "source_count": len(sources),
-            "sources": sources,
+            "sources": _serialize_sources_for_trace(sources),
             "status": "completed",
             "latency_ms": latency_ms,
         }
@@ -165,6 +188,8 @@ def lambda_handler(event, context):
             request_id=request_id,
             path=path,
             model_id=BEDROCK_MODEL_ID,
+            embedding_model_id=EMBEDDING_MODEL_ID,
+            retrieval_mode=RETRIEVAL_MODE,
             latency_ms=latency_ms,
             source_count=len(sources),
             status="completed",
@@ -177,25 +202,28 @@ def lambda_handler(event, context):
                 "answer": answer,
                 "sources": sources,
                 "modelId": BEDROCK_MODEL_ID,
+                    "embeddingModelId": EMBEDDING_MODEL_ID,
                 "status": "completed",
             },
         )
-    except BedrockInvocationError as exc:
+    except (EmbeddingInvocationError, BedrockInvocationError) as exc:
         latency_ms = int((perf_counter() - started_at) * 1000)
         source_count = len(locals().get("sources", []))
         log_json(
             LOGGER,
             logging.ERROR,
-            "bedrock rag invocation failed",
+            "rag invocation failed",
             request_id=request_id,
             path=path,
             model_id=BEDROCK_MODEL_ID,
+            embedding_model_id=EMBEDDING_MODEL_ID,
+            retrieval_mode=RETRIEVAL_MODE,
             latency_ms=latency_ms,
             source_count=source_count,
             status="failed",
             error=str(exc),
         )
-        return json_response(502, {"message": "Bedrock invocation failed."})
+        return json_response(502, {"message": "Embedding or Bedrock invocation failed."})
     except Exception:
         latency_ms = int((perf_counter() - started_at) * 1000)
         source_count = len(locals().get("sources", []))
@@ -206,6 +234,8 @@ def lambda_handler(event, context):
                 "extra_fields": {
                     "path": path,
                     "model_id": BEDROCK_MODEL_ID,
+                    "embedding_model_id": EMBEDDING_MODEL_ID,
+                    "retrieval_mode": RETRIEVAL_MODE,
                     "latency_ms": latency_ms,
                     "source_count": source_count,
                     "status": "failed",

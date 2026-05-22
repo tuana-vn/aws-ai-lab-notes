@@ -5,11 +5,13 @@ from datetime import datetime, timezone
 
 from common.chunking import chunk_document
 from common.document_repository import DocumentRepository
+from common.embedding_client import EmbeddingClient, EmbeddingInvocationError
 from common.logging import get_logger, log_json
 from common.response import json_response
 
 LOGGER = get_logger(__name__)
 DOCUMENT_CHUNKS_TABLE_NAME = os.environ.get("DOCUMENT_CHUNKS_TABLE_NAME", "")
+EMBEDDING_MODEL_ID = os.environ.get("EMBEDDING_MODEL_ID", "cohere.embed-english-v3")
 
 
 def _parse_body(event):
@@ -50,12 +52,25 @@ def lambda_handler(event, context):
 
     try:
         body = _parse_body(event)
+    except ValueError as exc:
+        log_json(
+            LOGGER,
+            logging.WARNING,
+            "invalid document request",
+            path=path,
+            error=str(exc),
+        )
+        return json_response(400, {"message": str(exc)})
+
+    try:
         chunks = chunk_document(body["content"])
         created_at = datetime.now(timezone.utc).isoformat()
         chunk_records = []
         repository = DocumentRepository(DOCUMENT_CHUNKS_TABLE_NAME)
+        embedding_client = EmbeddingClient(EMBEDDING_MODEL_ID)
 
         for chunk_index, chunk_content in enumerate(chunks):
+            embedding = embedding_client.embed_document(chunk_content)
             chunk_records.append(
                 {
                     "document_id": body["documentId"],
@@ -63,6 +78,7 @@ def lambda_handler(event, context):
                     "title": body["title"],
                     "chunk_index": chunk_index,
                     "content": chunk_content,
+                    "embedding": embedding,
                     "created_at": created_at,
                 }
             )
@@ -77,6 +93,7 @@ def lambda_handler(event, context):
             path=path,
             document_id=body["documentId"],
             chunk_count=len(chunk_records),
+            embedding_model_id=EMBEDDING_MODEL_ID,
             status="indexed",
         )
 
@@ -89,21 +106,27 @@ def lambda_handler(event, context):
                 "status": "indexed",
             },
         )
-    except ValueError as exc:
+    except EmbeddingInvocationError as exc:
         log_json(
             LOGGER,
-            logging.WARNING,
-            "invalid document request",
+            logging.ERROR,
+            "document embedding invocation failed",
             path=path,
+            document_id=body["documentId"],
+            embedding_model_id=EMBEDDING_MODEL_ID,
+            status="failed",
             error=str(exc),
         )
-        return json_response(400, {"message": str(exc)})
+        return json_response(502, {"message": "Embedding invocation failed."})
     except Exception:
         LOGGER.exception(
             "unexpected document indexing failure",
             extra={
                 "extra_fields": {
                     "path": path,
+                    "document_id": body["documentId"],
+                    "embedding_model_id": EMBEDDING_MODEL_ID,
+                    "status": "failed",
                 },
             },
         )

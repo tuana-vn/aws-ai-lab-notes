@@ -1,31 +1,37 @@
 from __future__ import annotations
 
-import re
 from typing import Any
 
-TOKEN_PATTERN = re.compile(r"[a-z0-9]+")
-
-
-def tokenize(text: str) -> set[str]:
-    return set(TOKEN_PATTERN.findall(text.lower()))
+from common.vector_math import cosine_similarity
 
 
 def retrieve_top_chunks(
-    question: str,
+    question_embedding: list[float],
     chunks: list[dict[str, Any]],
     limit: int = 3,
 ) -> list[dict[str, Any]]:
-    question_tokens = tokenize(question)
-    scored_chunks: list[tuple[int, int, dict[str, Any]]] = []
+    scored_chunks: list[tuple[float, int, str, dict[str, Any]]] = []
 
     for chunk in chunks:
-        chunk_tokens = tokenize(str(chunk.get("content", "")))
-        overlap_score = len(question_tokens & chunk_tokens)
-        if overlap_score <= 0:
+        raw_embedding = chunk.get("embedding")
+        if not isinstance(raw_embedding, list):
+            continue
+
+        try:
+            chunk_embedding = [float(value) for value in raw_embedding]
+        except (TypeError, ValueError):
+            continue
+
+        similarity = cosine_similarity(question_embedding, chunk_embedding)
+        if similarity <= 0.0:
             continue
 
         chunk_index = int(chunk.get("chunk_index", 0))
-        scored_chunks.append((overlap_score, -chunk_index, chunk))
+        scored_chunk = dict(chunk)
+        scored_chunk["similarity"] = round(similarity, 4)
+        scored_chunks.append(
+            (similarity, -chunk_index, str(chunk.get("chunk_id", "")), scored_chunk)
+        )
 
-    scored_chunks.sort(key=lambda item: (-item[0], -item[1], item[2].get("chunk_id", "")))
-    return [item[2] for item in scored_chunks[:limit]]
+    scored_chunks.sort(key=lambda item: (-item[0], -item[1], item[2]))
+    return [item[3] for item in scored_chunks[:limit]]

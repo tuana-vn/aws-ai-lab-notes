@@ -1,6 +1,6 @@
 # AWS AI Platform PoC
 
-This repository contains a minimal AWS backend foundation for an AI platform, now extended through Phase 3A with a mini RAG flow built on DynamoDB document chunks and Amazon Bedrock inference.
+This repository contains a minimal AWS backend foundation for an AI platform, now extended through Phase 3B with a mini RAG flow that stores document embeddings in DynamoDB and performs embedding-based semantic retrieval before grounded Amazon Bedrock inference.
 
 ## Why this foundation exists
 
@@ -8,7 +8,9 @@ This first step establishes the API, Lambda execution model, request tracing, an
 
 Phase 2 adds only the smallest useful Bedrock capability: a `/chat` endpoint that sends one user message to the Bedrock Converse API, returns the model answer, records a short trace in DynamoDB, and logs the request lifecycle to CloudWatch.
 
-Phase 3A adds a learning-focused mini RAG foundation. Documents are split into simple chunks and stored in DynamoDB. A `/rag/query` request scans those chunks, ranks them by keyword overlap, builds a grounded prompt, and asks Bedrock to answer only from the retrieved context.
+Phase 3A added a learning-focused mini RAG foundation. Documents were split into simple chunks and stored in DynamoDB. A `/rag/query` request scanned those chunks, ranked them by keyword overlap, built a grounded prompt, and asked Bedrock to answer only from the retrieved context.
+
+Phase 3B upgrades that retrieval step from keyword overlap to embedding-based semantic similarity. Each chunk is embedded during `/documents` ingestion, stored with its vector, and later compared with the question embedding using cosine similarity inside the Lambda.
 
 ## Target architecture
 
@@ -16,9 +18,9 @@ Client -> API Gateway -> Lambda -> DynamoDB -> CloudWatch Logs
 
 Mini RAG flow:
 
-Client -> API Gateway -> Documents Lambda -> DynamoDB DocumentChunks
+Client -> API Gateway -> Documents Lambda -> Bedrock Embed -> DynamoDB DocumentChunks
 
-Client -> API Gateway -> RagQuery Lambda -> DynamoDB DocumentChunks -> Bedrock Converse API -> DynamoDB Trace -> CloudWatch Logs
+Client -> API Gateway -> RagQuery Lambda -> Bedrock Embed -> DynamoDB DocumentChunks Scan -> Cosine Similarity -> Bedrock Converse API -> DynamoDB Trace -> CloudWatch Logs
 
 ## Project structure
 
@@ -31,10 +33,12 @@ aws-ai-platform-poc/
         bedrock_client.py
         chunking.py
         document_repository.py
+        embedding_client.py
         response.py
         logging.py
         retrieval.py
         trace_repository.py
+        vector_math.py
       chat/
         handler.py
       documents/
@@ -136,6 +140,8 @@ Successful response:
 }
 ```
 
+`/documents` now generates an embedding for each chunk with the Bedrock model in `EMBEDDING_MODEL_ID`, defaulting to `cohere.embed-english-v3`, then stores both the chunk text and embedding in DynamoDB.
+
 ### POST /rag/query
 
 Request body:
@@ -157,15 +163,19 @@ Successful response:
       "documentId": "api-gateway-note",
       "chunkId": "chunk-0001",
       "title": "API Gateway Note",
-      "chunkIndex": 0
+      "chunkIndex": 0,
+      "similarity": 0.82
     }
   ],
   "modelId": "apac.amazon.nova-lite-v1:0",
+  "embeddingModelId": "cohere.embed-english-v3",
   "status": "completed"
 }
 ```
 
-When no relevant chunks are found, `/rag/query` returns `I do not know based on the available documents.` with an empty `sources` array. This keeps the first RAG iteration explicit and grounded instead of guessing.
+When no similar chunks are found, `/rag/query` returns `I do not know based on the available documents.` with an empty `sources` array and a `no_source` status. This keeps the RAG flow explicit and grounded instead of guessing.
+
+`/rag/query` now generates a query embedding, scans document chunks from DynamoDB, calculates cosine similarity against each stored embedding, keeps the top 3 chunks with similarity greater than zero, and only then calls Bedrock Converse for answer generation.
 
 ## Design notes
 
@@ -174,10 +184,39 @@ When no relevant chunks are found, `/rag/query` returns `I do not know based on 
 - The Echo Lambda is granted only `dynamodb:PutItem` on the single trace table because IAM policies should stay least-privilege from the beginning.
 - The Chat Lambda uses the Bedrock Runtime Converse API with a model ID from `BEDROCK_MODEL_ID`, defaulting to `amazon.nova-lite-v1:0` for a simple first integration.
 - The chat trace stores only `answer_preview` instead of the full answer so the trace table stays lightweight and avoids persisting long model outputs by default.
-- Phase 3A is a mini RAG because retrieval is still backend-managed and keyword-based. It grounds answers with retrieved chunks, but it does not yet use embeddings, vector search, hybrid retrieval, reranking, or Bedrock Knowledge Bases.
-- Keyword retrieval is the right first step for learning because the logic is visible and easy to debug before moving to more capable retrieval approaches.
-- DynamoDB Scan is acceptable here only because this is a learning PoC. Production retrieval should use better indexing, metadata filters, vector search, or managed knowledge services.
+- Phase 3B keeps the mini RAG intentionally simple. Retrieval is embedding-based, but storage still uses DynamoDB and retrieval still scans all chunks inside Lambda.
+- Keyword retrieval is a good first step for learning because the logic is visible. Embedding retrieval improves recall for semantically related wording, even when the question and document chunks do not share many exact tokens.
+- DynamoDB Scan plus cosine similarity inside Lambda is acceptable here only because this is a learning PoC. Production retrieval should use a proper vector store, Bedrock Knowledge Bases, or another indexed retrieval system.
+- The repository stores embeddings alongside chunk content for clarity. In production, embeddings usually belong in a dedicated vector-capable system rather than a full-table DynamoDB scan path.
 - The code intentionally avoids extra frameworks so the Lambda and SAM patterns remain easy to learn and easy to extend.
+
+## Phase 3B purpose
+
+Phase 3B exists to make the retrieval step more realistic without introducing a full managed retrieval stack yet. It shows the mechanics of:
+
+- generating document embeddings during ingestion
+- generating query embeddings at request time
+- comparing vectors with cosine similarity
+- selecting top chunks before grounded answer generation
+
+This keeps the retrieval logic visible and debuggable while still demonstrating a meaningful improvement over keyword overlap.
+
+## Keyword vs embedding retrieval
+
+- Keyword retrieval matches exact or overlapping terms. It is simple and transparent, but it misses semantically similar phrasing.
+- Embedding retrieval converts text into vectors so semantically related content can rank well even when the exact words differ.
+- This Phase 3B implementation still stays intentionally small: one embedding model, DynamoDB storage, a scan, and cosine similarity in Lambda.
+
+## Learning-only scaling note
+
+Scanning DynamoDB and computing cosine similarity in Lambda is acceptable here only because the goal is to learn the RAG control flow end to end. It should not be treated as a production retrieval design because full scans increase latency and cost as the document set grows.
+
+For production, prefer one of these options:
+
+- Bedrock Knowledge Bases
+- OpenSearch Serverless vector index
+- Aurora PostgreSQL with pgvector
+- another vector database or managed vector retrieval service
 
 ## Required AWS permissions
 
@@ -188,9 +227,10 @@ To deploy and run Phase 2, the environment needs permission for:
 - API Gateway deployment permissions
 - DynamoDB table creation and `dynamodb:PutItem`
 - DynamoDB `dynamodb:Scan` on the document chunk table for the learning retrieval flow
+- DynamoDB `dynamodb:DeleteItem` and `dynamodb:Query` on the document chunk table for re-indexing
 - Bedrock runtime access, including `bedrock:InvokeModel` and `bedrock:Converse`
 
-The SAM template keeps DynamoDB write access least-privilege. Bedrock access uses `Resource: "*"` in this PoC because model ARN scoping varies by setup; production should narrow that policy to approved model resources.
+The SAM template keeps DynamoDB access scoped to the specific tables. Bedrock access uses `Resource: "*"` in this PoC because model and inference profile ARN scoping varies by setup; production should narrow that policy to approved model or profile resources.
 
 ## Deployment
 
@@ -225,6 +265,8 @@ curl -X POST "$API_BASE_URL/documents" \
   -d @test-data/requests/document-request.json
 ```
 
+`/documents` now calls the Bedrock embedding model for each chunk and may incur additional Bedrock cost depending on chunk count, text size, and account pricing.
+
 ## How to test /rag/query
 
 Use `test-data/requests/rag-query-request.json` after indexing at least one document.
@@ -235,9 +277,7 @@ curl -X POST "$API_BASE_URL/rag/query" \
   -d @test-data/requests/rag-query-request.json
 ```
 
-## Future Phase 3B
-
-The next RAG step should add embeddings and vector search or move retrieval to Bedrock Knowledge Bases. That is the point where retrieval quality, metadata filtering, and scale should improve beyond this learning-oriented keyword baseline.
+`/rag/query` now uses embedding retrieval. It also calls Bedrock for answer generation, so both embedding generation and final answer generation may incur cost.
 
 ## Local test payload
 

@@ -131,6 +131,7 @@ Resources:
       Environment:
         Variables:
           DOCUMENT_CHUNKS_TABLE_NAME: !Ref DocumentChunksTable
+          EMBEDDING_MODEL_ID: cohere.embed-english-v3
       Policies:
         - Version: '2012-10-17'
           Statement:
@@ -140,6 +141,12 @@ Resources:
                 - dynamodb:DeleteItem
                 - dynamodb:Query
               Resource: !GetAtt DocumentChunksTable.Arn
+            # This PoC uses a wildcard Bedrock resource to keep setup simple.
+            # In production, restrict this to the specific approved model or profile ARN.
+            - Effect: Allow
+              Action:
+                - bedrock:InvokeModel
+              Resource: "*"
       Events:
         PostDocuments:
           Type: Api
@@ -153,17 +160,18 @@ Resources:
     Properties:
       CodeUri: ../../backend/lambda
       Handler: rag_query.handler.lambda_handler
-      Description: Keyword retrieval plus grounded Bedrock answer for the mini RAG PoC.
+      Description: Embedding retrieval plus grounded Bedrock answer for the mini RAG PoC.
       Environment:
         Variables:
           DOCUMENT_CHUNKS_TABLE_NAME: !Ref DocumentChunksTable
           TRACE_TABLE_NAME: !Ref AiPlatformRequestTrace
           BEDROCK_MODEL_ID: apac.amazon.nova-lite-v1:0
+          EMBEDDING_MODEL_ID: cohere.embed-english-v3
       Policies:
         - Version: '2012-10-17'
           Statement:
-            # DynamoDB Scan is acceptable only for this learning PoC.
-            # In production, retrieval should use proper indexing, filtering, vector search, or Bedrock Knowledge Bases.
+            # DynamoDB Scan plus in-Lambda cosine similarity is acceptable only for this learning PoC.
+            # In production, retrieval should use a proper vector store, filtering, or Bedrock Knowledge Bases.
             - Effect: Allow
               Action:
                 - dynamodb:Scan
@@ -173,7 +181,7 @@ Resources:
                 - dynamodb:PutItem
               Resource: !GetAtt AiPlatformRequestTrace.Arn
             # This PoC uses a wildcard Bedrock resource to keep setup simple.
-            # In production, restrict this to the specific approved model ARN.
+            # In production, restrict this to the specific approved model or profile ARN.
             - Effect: Allow
               Action:
                 - bedrock:InvokeModel
