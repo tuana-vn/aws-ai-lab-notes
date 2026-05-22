@@ -1,0 +1,5 @@
+{
+  "documentId": "api-gateway-note",
+  "title": "API Gateway Note",
+  "content": "Amazon API Gateway is a managed service that helps developers create, publish, maintain, monitor, and secure APIs. It can act as the front door for applications to access backend services such as Lambda functions or container-based services. API Gateway can handle routing, throttling, authorization, request validation, and integration with AWS services."
+}

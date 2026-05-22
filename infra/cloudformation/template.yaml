@@ -1,0 +1,201 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: AWS AI Platform PoC backend foundation
+
+Globals:
+  Function:
+    Runtime: python3.12
+    Timeout: 10
+    MemorySize: 128
+    Architectures:
+      - x86_64
+
+Parameters:
+  EnvironmentName:
+    Type: String
+    Default: dev
+    Description: Deployment environment name used to namespace shared resources.
+
+Resources:
+  ApiGateway:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: v1
+      Name: aws-ai-platform-api
+
+  AiPlatformRequestTrace:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub ai-platform-request-trace-${EnvironmentName}
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: request_id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: request_id
+          KeyType: HASH
+
+  DocumentChunksTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub ai-platform-document-chunks-${EnvironmentName}
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: document_id
+          AttributeType: S
+        - AttributeName: chunk_id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: document_id
+          KeyType: HASH
+        - AttributeName: chunk_id
+          KeyType: RANGE
+
+  HealthFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ../../backend/lambda
+      Handler: health.handler.lambda_handler
+      Description: Health endpoint for the AWS AI Platform PoC.
+      Events:
+        GetHealth:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ApiGateway
+            Path: /health
+            Method: get
+
+  EchoFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ../../backend/lambda
+      Handler: echo.handler.lambda_handler
+      Description: Echo endpoint with request trace persistence.
+      Environment:
+        Variables:
+          TRACE_TABLE_NAME: !Ref AiPlatformRequestTrace
+      Policies:
+        # Least privilege matters here: the Lambda can only write traces to its own table.
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - dynamodb:PutItem
+              Resource: !GetAtt AiPlatformRequestTrace.Arn
+      Events:
+        PostEcho:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ApiGateway
+            Path: /echo
+            Method: post
+
+  ChatFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ../../backend/lambda
+      Handler: chat.handler.lambda_handler
+      Description: Minimal Bedrock chat inference endpoint.
+      Environment:
+        Variables:
+          TRACE_TABLE_NAME: !Ref AiPlatformRequestTrace
+          BEDROCK_MODEL_ID: apac.amazon.nova-lite-v1:0
+      Policies:
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - dynamodb:PutItem
+              Resource: !GetAtt AiPlatformRequestTrace.Arn
+            # This PoC uses a wildcard Bedrock resource to keep setup simple.
+            # In production, restrict this to the specific approved model ARN.
+            - Effect: Allow
+              Action:
+                - bedrock:InvokeModel
+                - bedrock:Converse
+              Resource: "*"
+      Events:
+        PostChat:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ApiGateway
+            Path: /chat
+            Method: post
+
+  DocumentsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ../../backend/lambda
+      Handler: documents.handler.lambda_handler
+      Description: Document indexing endpoint for the mini RAG learning flow.
+      Environment:
+        Variables:
+          DOCUMENT_CHUNKS_TABLE_NAME: !Ref DocumentChunksTable
+      Policies:
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - dynamodb:PutItem
+                - dynamodb:DeleteItem
+                - dynamodb:Query
+              Resource: !GetAtt DocumentChunksTable.Arn
+      Events:
+        PostDocuments:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ApiGateway
+            Path: /documents
+            Method: post
+
+  RagQueryFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ../../backend/lambda
+      Handler: rag_query.handler.lambda_handler
+      Description: Keyword retrieval plus grounded Bedrock answer for the mini RAG PoC.
+      Environment:
+        Variables:
+          DOCUMENT_CHUNKS_TABLE_NAME: !Ref DocumentChunksTable
+          TRACE_TABLE_NAME: !Ref AiPlatformRequestTrace
+          BEDROCK_MODEL_ID: apac.amazon.nova-lite-v1:0
+      Policies:
+        - Version: '2012-10-17'
+          Statement:
+            # DynamoDB Scan is acceptable only for this learning PoC.
+            # In production, retrieval should use proper indexing, filtering, vector search, or Bedrock Knowledge Bases.
+            - Effect: Allow
+              Action:
+                - dynamodb:Scan
+              Resource: !GetAtt DocumentChunksTable.Arn
+            - Effect: Allow
+              Action:
+                - dynamodb:PutItem
+              Resource: !GetAtt AiPlatformRequestTrace.Arn
+            # This PoC uses a wildcard Bedrock resource to keep setup simple.
+            # In production, restrict this to the specific approved model ARN.
+            - Effect: Allow
+              Action:
+                - bedrock:InvokeModel
+                - bedrock:Converse
+              Resource: "*"
+      Events:
+        PostRagQuery:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ApiGateway
+            Path: /rag/query
+            Method: post
+
+Outputs:
+  ApiBaseUrl:
+    Description: Base invoke URL for the deployed API stage.
+    Value: !Sub https://${ApiGateway}.execute-api.${AWS::Region}.amazonaws.com/v1
+
+  TraceTableName:
+    Description: DynamoDB table storing request traces.
+    Value: !Ref AiPlatformRequestTrace
+
+  DocumentChunksTableName:
+    Description: DynamoDB table storing indexed document chunks.
+    Value: !Ref DocumentChunksTable

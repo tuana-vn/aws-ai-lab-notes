@@ -1,0 +1,110 @@
+import json
+import logging
+import os
+from datetime import datetime, timezone
+
+from common.chunking import chunk_document
+from common.document_repository import DocumentRepository
+from common.logging import get_logger, log_json
+from common.response import json_response
+
+LOGGER = get_logger(__name__)
+DOCUMENT_CHUNKS_TABLE_NAME = os.environ.get("DOCUMENT_CHUNKS_TABLE_NAME", "")
+
+
+def _parse_body(event):
+    raw_body = event.get("body")
+    if raw_body is None:
+        raise ValueError("Request body is required.")
+
+    if isinstance(raw_body, str):
+        try:
+            body = json.loads(raw_body)
+        except json.JSONDecodeError as exc:
+            raise ValueError("Request body must be valid JSON.") from exc
+    elif isinstance(raw_body, dict):
+        body = raw_body
+    else:
+        raise ValueError("Request body must be a JSON object.")
+
+    document_id = body.get("documentId")
+    title = body.get("title")
+    content = body.get("content")
+
+    if not isinstance(document_id, str) or not document_id.strip():
+        raise ValueError("Field 'documentId' is required and must be a non-empty string.")
+    if not isinstance(title, str) or not title.strip():
+        raise ValueError("Field 'title' is required and must be a non-empty string.")
+    if not isinstance(content, str) or not content.strip():
+        raise ValueError("Field 'content' is required and must be a non-empty string.")
+
+    return {
+        "documentId": document_id.strip(),
+        "title": title.strip(),
+        "content": content.strip(),
+    }
+
+
+def lambda_handler(event, context):
+    path = event.get("rawPath") or event.get("path") or "/documents"
+
+    try:
+        body = _parse_body(event)
+        chunks = chunk_document(body["content"])
+        created_at = datetime.now(timezone.utc).isoformat()
+        chunk_records = []
+        repository = DocumentRepository(DOCUMENT_CHUNKS_TABLE_NAME)
+
+        for chunk_index, chunk_content in enumerate(chunks):
+            chunk_records.append(
+                {
+                    "document_id": body["documentId"],
+                    "chunk_id": f"chunk-{chunk_index + 1:04d}",
+                    "title": body["title"],
+                    "chunk_index": chunk_index,
+                    "content": chunk_content,
+                    "created_at": created_at,
+                }
+            )
+
+        repository.delete_chunks_by_document_id(body["documentId"])
+        repository.save_chunks(chunk_records)
+
+        log_json(
+            LOGGER,
+            logging.INFO,
+            "document indexed",
+            path=path,
+            document_id=body["documentId"],
+            chunk_count=len(chunk_records),
+            status="indexed",
+        )
+
+        return json_response(
+            200,
+            {
+                "documentId": body["documentId"],
+                "title": body["title"],
+                "chunkCount": len(chunk_records),
+                "status": "indexed",
+            },
+        )
+    except ValueError as exc:
+        log_json(
+            LOGGER,
+            logging.WARNING,
+            "invalid document request",
+            path=path,
+            error=str(exc),
+        )
+        return json_response(400, {"message": str(exc)})
+    except Exception:
+        LOGGER.exception(
+            "unexpected document indexing failure",
+            extra={
+                "extra_fields": {
+                    "path": path,
+                },
+            },
+        )
+        return json_response(500, {"message": "Internal server error."})
