@@ -1,6 +1,6 @@
 # AWS AI Platform PoC
 
-This repository contains a minimal AWS backend foundation for an AI platform, now extended through Phase 3D with a mini RAG flow that stores document embeddings in DynamoDB, filters weak matches with a similarity threshold, and performs grounded Amazon Bedrock inference only when retrieval is strong enough.
+This repository contains a minimal AWS backend foundation for an AI platform, now extended through Phase 4A with a mini RAG flow that stores document embeddings in DynamoDB, filters eligible chunks by metadata boundaries, filters weak matches with a similarity threshold, and performs grounded Amazon Bedrock inference only when retrieval is strong enough.
 
 ## Why this foundation exists
 
@@ -70,6 +70,8 @@ Phase 3C adds a local evaluation workflow that re-indexes a known document, runs
 
 Phase 3D hardens the retrieval step with `MIN_SIMILARITY_SCORE`, defaulting to `0.25`. Chunks below that threshold are treated as not grounded enough, so `/rag/query` returns a `no_source` result with an empty `sources` array instead of sending weak context to the LLM.
 
+Phase 4A adds metadata boundaries. Documents can now carry `projectId`, `customerId`, and `documentType`, and `/rag/query` can apply those filters before similarity scoring so retrieval stays inside the intended document scope.
+
 ## Endpoints
 
 ### GET /health
@@ -135,6 +137,9 @@ Request body:
 {
   "documentId": "api-gateway-note",
   "title": "API Gateway Note",
+  "projectId": "learning",
+  "customerId": "internal",
+  "documentType": "technical-note",
   "content": "Amazon API Gateway is a managed service that helps developers create, publish, maintain, monitor, and secure APIs. It can act as the front door for applications to access backend services such as Lambda functions or container-based services. API Gateway can handle routing, throttling, authorization, request validation, and integration with AWS services."
 }
 ```
@@ -158,7 +163,12 @@ Request body:
 
 ```json
 {
-  "question": "What does API Gateway do?"
+  "question": "What does API Gateway do?",
+  "filters": {
+    "projectId": "learning",
+    "customerId": "internal",
+    "documentType": "technical-note"
+  }
 }
 ```
 
@@ -174,18 +184,28 @@ Successful response:
       "chunkId": "chunk-0001",
       "title": "API Gateway Note",
       "chunkIndex": 0,
-      "similarity": 0.82
+      "similarity": 0.82,
+      "projectId": "learning",
+      "customerId": "internal",
+      "documentType": "technical-note"
     }
   ],
   "modelId": "apac.amazon.nova-lite-v1:0",
   "embeddingModelId": "cohere.embed-english-v3",
+  "retrievalMode": "embedding",
+  "minSimilarityScore": 0.25,
+  "filters": {
+    "projectId": "learning",
+    "customerId": "internal",
+    "documentType": "technical-note"
+  },
   "status": "completed"
 }
 ```
 
 When no similar chunks are found, `/rag/query` returns `I do not know based on the available documents.` with an empty `sources` array and a `no_source` status. This keeps the RAG flow explicit and grounded instead of guessing.
 
-`/rag/query` now generates a query embedding, scans document chunks from DynamoDB, calculates cosine similarity against each stored embedding, keeps only chunks with similarity greater than or equal to `MIN_SIMILARITY_SCORE`, selects the top 3 remaining chunks, and only then calls Bedrock Converse for answer generation.
+`/rag/query` now loads chunks from DynamoDB, applies optional metadata filters first, calculates cosine similarity only for the eligible chunks, keeps only chunks with similarity greater than or equal to `MIN_SIMILARITY_SCORE`, selects the top 3 remaining chunks, and only then calls Bedrock Converse for answer generation.
 
 ## Design notes
 
@@ -316,6 +336,16 @@ Phase 3D adds `MIN_SIMILARITY_SCORE`, with a default value of `0.25` for this le
 This matters for out-of-source questions. If no chunk meets the threshold, the Lambda does not call Bedrock Converse. Instead it returns the existing no-answer text, an empty `sources` array, `status: no_source`, and includes both `retrievalMode` and `minSimilarityScore` in the response for easier debugging.
 
 The threshold is configured on `RagQueryFunction` through the environment variable `MIN_SIMILARITY_SCORE`. For this PoC, `0.25` is a readable starting point: high enough to block obviously weak matches, but still simple enough to tune while learning how retrieval quality changes.
+
+## Phase 4A - Metadata Filter and Multi-Document Boundary
+
+Metadata filtering is needed because similarity decides relevance, but metadata decides eligibility. A chunk can be semantically similar to a question and still belong to the wrong project, the wrong customer boundary, or the wrong document class.
+
+Phase 4A adds `projectId`, `customerId`, and `documentType` to indexed document chunks. These values are stored on every chunk during `/documents` ingestion, with defaults of `default`, `default`, and `general` when the request does not provide them.
+
+In `/rag/query`, metadata filtering happens before similarity search. That order matters: the system should first decide which chunks are allowed to participate, then rank only those eligible chunks by cosine similarity. Filtering after similarity would let out-of-bound documents influence the candidate set before the boundary is enforced.
+
+This is still a learning PoC. Production systems should combine metadata filtering with IAM or application authorization checks and with a retrieval engine that can enforce metadata predicates during indexed vector search, rather than relying on a full DynamoDB scan inside Lambda.
 
 ## Local test payload
 

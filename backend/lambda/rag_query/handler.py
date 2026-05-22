@@ -21,6 +21,11 @@ EMBEDDING_MODEL_ID = os.environ.get("EMBEDDING_MODEL_ID", "cohere.embed-english-
 MIN_SIMILARITY_SCORE = float(os.environ.get("MIN_SIMILARITY_SCORE", "0.25"))
 RETRIEVAL_MODE = "embedding"
 NO_SOURCE_ANSWER = "I do not know based on the available documents."
+FILTER_FIELD_MAP = {
+    "projectId": "project_id",
+    "customerId": "customer_id",
+    "documentType": "document_type",
+}
 
 
 def _parse_body(event):
@@ -39,10 +44,48 @@ def _parse_body(event):
         raise ValueError("Request body must be a JSON object.")
 
     question = body.get("question")
+    raw_filters = body.get("filters", {})
     if not isinstance(question, str) or not question.strip():
         raise ValueError("Field 'question' is required and must be a non-empty string.")
+    if raw_filters is None:
+        raw_filters = {}
+    if not isinstance(raw_filters, dict):
+        raise ValueError("Field 'filters' must be a JSON object when provided.")
 
-    return question.strip()
+    filters = {}
+    for api_field in FILTER_FIELD_MAP:
+        value = raw_filters.get(api_field)
+        if value is None:
+            continue
+        if not isinstance(value, str) or not value.strip():
+            raise ValueError(f"Field 'filters.{api_field}' must be a non-empty string when provided.")
+        filters[api_field] = value.strip()
+
+    return {
+        "question": question.strip(),
+        "filters": filters,
+    }
+
+
+def _filter_chunks_by_metadata(chunks, filters):
+    if not filters:
+        return list(chunks)
+
+    eligible_chunks = []
+    for chunk in chunks:
+        matches_all_filters = True
+        for api_field, storage_field in FILTER_FIELD_MAP.items():
+            expected_value = filters.get(api_field)
+            if expected_value is None:
+                continue
+            if chunk.get(storage_field) != expected_value:
+                matches_all_filters = False
+                break
+
+        if matches_all_filters:
+            eligible_chunks.append(chunk)
+
+    return eligible_chunks
 
 
 def _build_grounded_prompt(question, chunks):
@@ -78,6 +121,9 @@ def _serialize_sources(chunks):
             "title": chunk["title"],
             "chunkIndex": int(chunk["chunk_index"]),
             "similarity": round(float(chunk["similarity"]), 4),
+            "projectId": chunk.get("project_id", "default"),
+            "customerId": chunk.get("customer_id", "default"),
+            "documentType": chunk.get("document_type", "general"),
         }
         for chunk in chunks
     ]
@@ -93,7 +139,7 @@ def _serialize_sources_for_trace(sources):
     ]
 
 
-def _build_no_source_response(request_id):
+def _build_no_source_response(request_id, filters):
     return {
         "requestId": request_id,
         "answer": NO_SOURCE_ANSWER,
@@ -102,21 +148,34 @@ def _build_no_source_response(request_id):
         "embeddingModelId": EMBEDDING_MODEL_ID,
         "retrievalMode": RETRIEVAL_MODE,
         "minSimilarityScore": MIN_SIMILARITY_SCORE,
+        "filters": filters,
         "status": "no_source",
     }
 
 
-def _build_trace_record(request_id, path, question, answer_preview, sources, status, latency_ms):
+def _build_trace_record(
+    request_id,
+    path,
+    question,
+    filters,
+    eligible_chunk_count,
+    answer_preview,
+    sources,
+    status,
+    latency_ms,
+):
     return {
         "request_id": request_id,
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "path": path,
         "question": question,
+        "filters": filters,
         "answer_preview": answer_preview[:500],
         "model_id": BEDROCK_MODEL_ID,
         "embedding_model_id": EMBEDDING_MODEL_ID,
         "retrieval_mode": RETRIEVAL_MODE,
         "min_similarity_score": str(MIN_SIMILARITY_SCORE),
+        "eligible_chunk_count": eligible_chunk_count,
         "source_count": len(sources),
         "sources": _serialize_sources_for_trace(sources),
         "status": status,
@@ -129,7 +188,7 @@ def lambda_handler(event, context):
     path = event.get("rawPath") or event.get("path") or "/rag/query"
 
     try:
-        question = _parse_body(event)
+        request_payload = _parse_body(event)
     except ValueError as exc:
         log_json(
             LOGGER,
@@ -144,14 +203,18 @@ def lambda_handler(event, context):
     started_at = perf_counter()
 
     try:
+        question = request_payload["question"]
+        filters = request_payload["filters"]
         repository = DocumentRepository(DOCUMENT_CHUNKS_TABLE_NAME)
         chunks = repository.list_chunks()
+        eligible_chunks = _filter_chunks_by_metadata(chunks, filters)
+        eligible_chunk_count = len(eligible_chunks)
         question_embedding = EmbeddingClient(EMBEDDING_MODEL_ID).embed_query(question)
         # This scan-and-score approach is intentionally simple for a learning PoC.
         # Production retrieval should use a proper vector store or Bedrock Knowledge Bases.
         top_chunks = retrieve_top_chunks(
             question_embedding,
-            chunks,
+            eligible_chunks,
             min_similarity_score=MIN_SIMILARITY_SCORE,
         )
         sources = _serialize_sources(top_chunks)
@@ -163,6 +226,8 @@ def lambda_handler(event, context):
                     request_id,
                     path,
                     question,
+                    filters,
+                    eligible_chunk_count,
                     NO_SOURCE_ANSWER,
                     [],
                     "no_source",
@@ -179,11 +244,13 @@ def lambda_handler(event, context):
                 embedding_model_id=EMBEDDING_MODEL_ID,
                 retrieval_mode=RETRIEVAL_MODE,
                 min_similarity_score=MIN_SIMILARITY_SCORE,
+                filters=filters,
+                eligible_chunk_count=eligible_chunk_count,
                 latency_ms=latency_ms,
                 source_count=0,
                 status="no_source",
             )
-            return json_response(200, _build_no_source_response(request_id))
+            return json_response(200, _build_no_source_response(request_id, filters))
 
         prompt = _build_grounded_prompt(question, top_chunks)
         answer = BedrockClient().converse(BEDROCK_MODEL_ID, prompt)
@@ -193,6 +260,8 @@ def lambda_handler(event, context):
             request_id,
             path,
             question,
+            filters,
+            eligible_chunk_count,
             answer,
             sources,
             "completed",
@@ -210,6 +279,8 @@ def lambda_handler(event, context):
             embedding_model_id=EMBEDDING_MODEL_ID,
             retrieval_mode=RETRIEVAL_MODE,
             min_similarity_score=MIN_SIMILARITY_SCORE,
+            filters=filters,
+            eligible_chunk_count=eligible_chunk_count,
             latency_ms=latency_ms,
             source_count=len(sources),
             status="completed",
@@ -225,12 +296,14 @@ def lambda_handler(event, context):
                 "embeddingModelId": EMBEDDING_MODEL_ID,
                 "retrievalMode": RETRIEVAL_MODE,
                 "minSimilarityScore": MIN_SIMILARITY_SCORE,
+                "filters": filters,
                 "status": "completed",
             },
         )
     except (EmbeddingInvocationError, BedrockInvocationError) as exc:
         latency_ms = int((perf_counter() - started_at) * 1000)
         source_count = len(locals().get("sources", []))
+        eligible_chunk_count = locals().get("eligible_chunk_count", 0)
         log_json(
             LOGGER,
             logging.ERROR,
@@ -241,6 +314,8 @@ def lambda_handler(event, context):
             embedding_model_id=EMBEDDING_MODEL_ID,
             retrieval_mode=RETRIEVAL_MODE,
             min_similarity_score=MIN_SIMILARITY_SCORE,
+            filters=locals().get("filters", {}),
+            eligible_chunk_count=eligible_chunk_count,
             latency_ms=latency_ms,
             source_count=source_count,
             status="failed",
@@ -250,6 +325,7 @@ def lambda_handler(event, context):
     except Exception:
         latency_ms = int((perf_counter() - started_at) * 1000)
         source_count = len(locals().get("sources", []))
+        eligible_chunk_count = locals().get("eligible_chunk_count", 0)
         LOGGER.exception(
             "unexpected rag query failure",
             extra={
@@ -260,6 +336,8 @@ def lambda_handler(event, context):
                     "embedding_model_id": EMBEDDING_MODEL_ID,
                     "retrieval_mode": RETRIEVAL_MODE,
                     "min_similarity_score": MIN_SIMILARITY_SCORE,
+                    "filters": locals().get("filters", {}),
+                    "eligible_chunk_count": eligible_chunk_count,
                     "latency_ms": latency_ms,
                     "source_count": source_count,
                     "status": "failed",

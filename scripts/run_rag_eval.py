@@ -91,6 +91,14 @@ def _format_source_summaries(response_body):
     return source_summaries
 
 
+def _format_filters_for_markdown(response_body):
+    filters = response_body.get("filters", {})
+    if not isinstance(filters, dict) or not filters:
+        return "-"
+
+    return ", ".join(f"{key}={value}" for key, value in filters.items())
+
+
 def _answer_contains_any_keyword(answer, keywords):
     normalized_answer = _normalize_text(answer)
     for keyword in keywords:
@@ -125,20 +133,24 @@ def _evaluate_case(case_definition, response):
             notes.append("answer did not contain any expected keyword")
 
         passed = status_matches and has_expected_source and has_expected_keyword
-    elif case_type == "out_of_source":
+    elif case_type in {"out_of_source", "metadata_boundary"}:
         normalized_answer = _normalize_text(answer)
         no_answer_detected = NO_ANSWER_TEXT.casefold() in normalized_answer
-        no_source_status = response_status == "no_source"
+        expected_status = case_definition.get("expectedStatus", "no_source")
+        no_source_status = response_status == expected_status
         no_sources_returned = not source_document_ids
+        expected_sources_empty = case_definition.get("expectedSourcesEmpty", True)
 
         if not no_answer_detected:
             notes.append("response did not refuse the out-of-source question")
         if not no_source_status:
-            notes.append(f"expected status 'no_source' but got '{response_status}'")
-        if not no_sources_returned:
-            notes.append("expected sources to be empty for out-of-source question")
+            notes.append(f"expected status '{expected_status}' but got '{response_status}'")
+        if expected_sources_empty and not no_sources_returned:
+            notes.append("expected sources to be empty for no-source case")
 
-        passed = no_answer_detected and no_source_status and no_sources_returned
+        passed = no_answer_detected and no_source_status and (
+            no_sources_returned if expected_sources_empty else True
+        )
     else:
         notes.append(f"unsupported case type '{case_type}'")
         passed = False
@@ -194,20 +206,21 @@ def _write_markdown_report(api_base_url, started_at, results):
         f"- passed cases: {passed_cases}",
         f"- failed cases: {failed_cases}",
         "",
-        "| Case ID | Type | Question | Status | Sources | Min Similarity | Pass/Fail | Notes |",
-        "| --- | --- | --- | --- | --- | --- | --- | --- |",
+        "| Case ID | Type | Question | Status | Filters | Sources | Min Similarity | Pass/Fail | Notes |",
+        "| --- | --- | --- | --- | --- | --- | --- | --- | --- |",
     ]
 
     for result in results:
         response_body = result["response"].get("body", {})
         status = response_body.get("status", "-")
+        filters = _format_filters_for_markdown(response_body)
         sources = _format_sources_for_markdown(response_body)
         min_similarity_score = response_body.get("minSimilarityScore", "-")
         pass_fail = "PASS" if result["pass"] else "FAIL"
         question = str(result["question"]).replace("|", "\\|")
         notes = str(result["notes"]).replace("|", "\\|")
         lines.append(
-            f"| {result['caseId']} | {result['type']} | {question} | {status} | {sources} | {min_similarity_score} | {pass_fail} | {notes} |"
+            f"| {result['caseId']} | {result['type']} | {question} | {status} | {filters} | {sources} | {min_similarity_score} | {pass_fail} | {notes} |"
         )
 
     lines.extend(["", "## Answer Snippets", ""])
@@ -215,6 +228,7 @@ def _write_markdown_report(api_base_url, started_at, results):
     for result in results:
         response_body = result["response"].get("body", {})
         answer = response_body.get("answer", "")
+        filters = _format_filters_for_markdown(response_body)
         sources = _format_sources_for_markdown(response_body)
         min_similarity_score = response_body.get("minSimilarityScore", "-")
         lines.extend(
@@ -225,6 +239,8 @@ def _write_markdown_report(api_base_url, started_at, results):
                 "",
                 f"Status: {response_body.get('status', '-')}",
                 "",
+            f"Filters: {filters}",
+            "",
                 f"Sources: {sources}",
                 "",
                 f"Min Similarity Score: {min_similarity_score}",
@@ -257,9 +273,13 @@ def main():
 
     results = []
     for case_definition in questions:
+        request_payload = {"question": case_definition.get("question", "")}
+        if isinstance(case_definition.get("filters"), dict):
+            request_payload["filters"] = case_definition["filters"]
+
         response = _post_json(
             f"{api_base_url}/rag/query",
-            {"question": case_definition.get("question", "")},
+            request_payload,
         )
         results.append(_evaluate_case(case_definition, response))
 

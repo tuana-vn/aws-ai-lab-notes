@@ -12,6 +12,9 @@ from common.response import json_response
 LOGGER = get_logger(__name__)
 DOCUMENT_CHUNKS_TABLE_NAME = os.environ.get("DOCUMENT_CHUNKS_TABLE_NAME", "")
 EMBEDDING_MODEL_ID = os.environ.get("EMBEDDING_MODEL_ID", "cohere.embed-english-v3")
+DEFAULT_PROJECT_ID = "default"
+DEFAULT_CUSTOMER_ID = "default"
+DEFAULT_DOCUMENT_TYPE = "general"
 
 
 def _parse_body(event):
@@ -32,6 +35,9 @@ def _parse_body(event):
     document_id = body.get("documentId")
     title = body.get("title")
     content = body.get("content")
+    project_id = body.get("projectId", DEFAULT_PROJECT_ID)
+    customer_id = body.get("customerId", DEFAULT_CUSTOMER_ID)
+    document_type = body.get("documentType", DEFAULT_DOCUMENT_TYPE)
 
     if not isinstance(document_id, str) or not document_id.strip():
         raise ValueError("Field 'documentId' is required and must be a non-empty string.")
@@ -39,10 +45,19 @@ def _parse_body(event):
         raise ValueError("Field 'title' is required and must be a non-empty string.")
     if not isinstance(content, str) or not content.strip():
         raise ValueError("Field 'content' is required and must be a non-empty string.")
+    if not isinstance(project_id, str) or not project_id.strip():
+        raise ValueError("Field 'projectId' must be a non-empty string when provided.")
+    if not isinstance(customer_id, str) or not customer_id.strip():
+        raise ValueError("Field 'customerId' must be a non-empty string when provided.")
+    if not isinstance(document_type, str) or not document_type.strip():
+        raise ValueError("Field 'documentType' must be a non-empty string when provided.")
 
     return {
         "documentId": document_id.strip(),
         "title": title.strip(),
+        "projectId": project_id.strip(),
+        "customerId": customer_id.strip(),
+        "documentType": document_type.strip(),
         "content": content.strip(),
     }
 
@@ -79,6 +94,9 @@ def lambda_handler(event, context):
                     "chunk_index": chunk_index,
                     "content": chunk_content,
                     "embedding": embedding,
+                    "project_id": body["projectId"],
+                    "customer_id": body["customerId"],
+                    "document_type": body["documentType"],
                     "created_at": created_at,
                 }
             )

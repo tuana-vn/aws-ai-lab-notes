@@ -1,6 +1,6 @@
 {
   "apiBaseUrl": "https://dj4qxxa454.execute-api.ap-southeast-1.amazonaws.com/v1",
-  "timestamp": "2026-05-22T06:54:19.492683+00:00",
+  "timestamp": "2026-05-22T07:09:42.259661+00:00",
   "documentResponse": {
     "httpStatusCode": 200,
     "body": {
@@ -19,6 +19,10 @@
         "caseId": "Q001",
         "type": "in_source",
         "question": "What does API Gateway do?",
+        "filters": {
+          "projectId": "learning",
+          "customerId": "internal"
+        },
         "expectedStatus": "completed",
         "expectedDocumentId": "api-gateway-note",
         "expectedAnswerKeywords": [
@@ -31,21 +35,28 @@
       "response": {
         "httpStatusCode": 200,
         "body": {
-          "requestId": "e74ad5a8-8191-4910-a033-3f49dc940f8d",
-          "answer": "Amazon API Gateway helps developers create, publish, maintain, monitor, and secure APIs. It can act as the front door for applications to access backend services such as Lambda functions or container-based services. API Gateway can handle routing, throttling, authorization, request validation, and integration with AWS services. (Source: documentId=api-gateway-note, chunkId=chunk-0001)",
+          "requestId": "987949a3-3526-467d-80ef-a5b8589023aa",
+          "answer": "API Gateway helps developers create, publish, maintain, monitor, and secure APIs. It can handle routing, throttling, authorization, request validation, and integration with AWS services. (Source: documentId=api-gateway-note, chunkId=chunk-0001)",
           "sources": [
             {
               "documentId": "api-gateway-note",
               "chunkId": "chunk-0001",
               "title": "API Gateway Note",
               "chunkIndex": 0,
-              "similarity": 0.7829
+              "similarity": 0.7829,
+              "projectId": "learning",
+              "customerId": "internal",
+              "documentType": "technical-note"
             }
           ],
           "modelId": "apac.amazon.nova-lite-v1:0",
           "embeddingModelId": "cohere.embed-english-v3",
           "retrievalMode": "embedding",
           "minSimilarityScore": 0.25,
+          "filters": {
+            "projectId": "learning",
+            "customerId": "internal"
+          },
           "status": "completed"
         }
       },
@@ -60,6 +71,10 @@
         "caseId": "Q002",
         "type": "semantic",
         "question": "How can API Gateway limit excessive traffic?",
+        "filters": {
+          "projectId": "learning",
+          "customerId": "internal"
+        },
         "expectedStatus": "completed",
         "expectedDocumentId": "api-gateway-note",
         "expectedAnswerKeywords": [
@@ -69,21 +84,28 @@
       "response": {
         "httpStatusCode": 200,
         "body": {
-          "requestId": "18b97db8-a029-4347-82bd-8d251eac2a63",
-          "answer": "API Gateway can limit excessive traffic through throttling. This feature allows you to control the rate at which clients can make API requests.\n\n[Source: documentId=api-gateway-note, chunkId=chunk-0001]",
+          "requestId": "5210439b-8d21-4119-b370-2be93299dd84",
+          "answer": "API Gateway can limit excessive traffic through throttling. \n\n[Source: documentId=api-gateway-note, chunkId=chunk-0001]",
           "sources": [
             {
               "documentId": "api-gateway-note",
               "chunkId": "chunk-0001",
               "title": "API Gateway Note",
               "chunkIndex": 0,
-              "similarity": 0.6338
+              "similarity": 0.6338,
+              "projectId": "learning",
+              "customerId": "internal",
+              "documentType": "technical-note"
             }
           ],
           "modelId": "apac.amazon.nova-lite-v1:0",
           "embeddingModelId": "cohere.embed-english-v3",
           "retrievalMode": "embedding",
           "minSimilarityScore": 0.25,
+          "filters": {
+            "projectId": "learning",
+            "customerId": "internal"
+          },
           "status": "completed"
         }
       },
@@ -98,6 +120,10 @@
         "caseId": "Q003",
         "type": "semantic",
         "question": "How does API Gateway protect backend services?",
+        "filters": {
+          "projectId": "learning",
+          "customerId": "internal"
+        },
         "expectedStatus": "completed",
         "expectedDocumentId": "api-gateway-note",
         "expectedAnswerKeywords": [
@@ -108,21 +134,28 @@
       "response": {
         "httpStatusCode": 200,
         "body": {
-          "requestId": "d4c93140-837e-42b1-81d4-9458f6967d94",
-          "answer": "API Gateway protects backend services through features such as routing, throttling, authorization, and request validation. It can also integrate with AWS services for additional security measures.\n\nSources:\n- documentId=api-gateway-note, chunkId=chunk-0001",
+          "requestId": "b9c2dd11-a14a-4608-b04c-a23f73c6eee9",
+          "answer": "API Gateway protects backend services through features such as routing, throttling, authorization, and request validation (documentId=api-gateway-note, chunkId=chunk-0001).",
           "sources": [
             {
               "documentId": "api-gateway-note",
               "chunkId": "chunk-0001",
               "title": "API Gateway Note",
               "chunkIndex": 0,
-              "similarity": 0.7247
+              "similarity": 0.7247,
+              "projectId": "learning",
+              "customerId": "internal",
+              "documentType": "technical-note"
             }
           ],
           "modelId": "apac.amazon.nova-lite-v1:0",
           "embeddingModelId": "cohere.embed-english-v3",
           "retrievalMode": "embedding",
           "minSimilarityScore": 0.25,
+          "filters": {
+            "projectId": "learning",
+            "customerId": "internal"
+          },
           "status": "completed"
         }
       },
@@ -137,6 +170,10 @@
         "caseId": "Q004",
         "type": "out_of_source",
         "question": "What is the capital city of France?",
+        "filters": {
+          "projectId": "learning",
+          "customerId": "internal"
+        },
         "expectedAnswerMode": "no_answer",
         "expectedAnswerKeywords": [
           "I do not know based on the available documents"
@@ -145,13 +182,51 @@
       "response": {
         "httpStatusCode": 200,
         "body": {
-          "requestId": "cab2b95f-b132-4c6b-b609-f936a364bbf8",
+          "requestId": "bd3a8a1e-2725-4a62-aee8-0276754ccf49",
           "answer": "I do not know based on the available documents.",
           "sources": [],
           "modelId": "apac.amazon.nova-lite-v1:0",
           "embeddingModelId": "cohere.embed-english-v3",
           "retrievalMode": "embedding",
           "minSimilarityScore": 0.25,
+          "filters": {
+            "projectId": "learning",
+            "customerId": "internal"
+          },
+          "status": "no_source"
+        }
+      },
+      "pass": true,
+      "notes": "OK"
+    },
+    {
+      "caseId": "Q005",
+      "type": "metadata_boundary",
+      "question": "What does API Gateway do?",
+      "expected": {
+        "caseId": "Q005",
+        "type": "metadata_boundary",
+        "question": "What does API Gateway do?",
+        "filters": {
+          "projectId": "other-project"
+        },
+        "expectedAnswerMode": "no_answer",
+        "expectedStatus": "no_source",
+        "expectedSourcesEmpty": true
+      },
+      "response": {
+        "httpStatusCode": 200,
+        "body": {
+          "requestId": "e423fa0c-3b9e-450b-bdab-3acbca33a6ed",
+          "answer": "I do not know based on the available documents.",
+          "sources": [],
+          "modelId": "apac.amazon.nova-lite-v1:0",
+          "embeddingModelId": "cohere.embed-english-v3",
+          "retrievalMode": "embedding",
+          "minSimilarityScore": 0.25,
+          "filters": {
+            "projectId": "other-project"
+          },
           "status": "no_source"
         }
       },
