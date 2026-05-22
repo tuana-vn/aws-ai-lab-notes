@@ -9,10 +9,14 @@ from common.agent import (
     ALLOWED_TOOLS,
     ANSWER_QUESTION_TASK,
     INSPECT_TRACE_TASK,
+    INVESTIGATE_RECENT_BLOCKS_TASK,
+    SEARCH_LOGS_TASK,
     READ_ONLY_AGENT_MODE,
     build_plan,
     build_tool_call,
 )
+from common.investigation import extract_request_ids_from_log_events, summarize_investigation
+from common.log_search import SUPPORTED_PRESETS, search_logs
 from common.logging import get_logger, log_json
 from common.policy import resolve_access_context
 from common.rag_service import normalize_filters, run_rag_query
@@ -22,6 +26,7 @@ from common.trace_repository import TraceRepository
 
 LOGGER = get_logger(__name__)
 TRACE_TABLE_NAME = os.environ.get("TRACE_TABLE_NAME", "")
+RAG_QUERY_LOG_GROUP_NAME = os.environ.get("RAG_QUERY_LOG_GROUP_NAME", "")
 
 
 def _serialize_trace_value(value):
@@ -69,6 +74,31 @@ def _parse_body(event):
         return {
             "task": task,
             "requestId": target_request_id.strip(),
+        }
+
+    if task == SEARCH_LOGS_TASK:
+        preset = body.get("preset", "raw")
+        if not isinstance(preset, str) or preset.strip() not in SUPPORTED_PRESETS:
+            raise ValueError("Field 'preset' must be one of: raw, blocked, no_source, errors.")
+
+        minutes = body.get("minutes", 60)
+        if isinstance(minutes, bool) or not isinstance(minutes, int) or minutes < 1 or minutes > 1440:
+            raise ValueError("Field 'minutes' must be an integer between 1 and 1440.")
+
+        return {
+            "task": task,
+            "preset": preset.strip(),
+            "minutes": minutes,
+        }
+
+    if task == INVESTIGATE_RECENT_BLOCKS_TASK:
+        minutes = body.get("minutes", 120)
+        if isinstance(minutes, bool) or not isinstance(minutes, int) or minutes < 1 or minutes > 1440:
+            raise ValueError("Field 'minutes' must be an integer between 1 and 1440.")
+
+        return {
+            "task": task,
+            "minutes": minutes,
         }
 
     raise ValueError("Unsupported agent task.")
@@ -121,6 +151,73 @@ def _save_inspect_trace_agent_trace(
     TraceRepository(TRACE_TABLE_NAME).save_trace(_serialize_trace_value(trace_record))
 
 
+def _save_search_logs_agent_trace(
+    request_id,
+    path,
+    user_id,
+    plan,
+    tool_calls,
+    preset,
+    minutes,
+    matched_events,
+    status,
+    latency_ms,
+    answer_preview,
+):
+    trace_record = {
+        "request_id": request_id,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "path": path,
+        "task": SEARCH_LOGS_TASK,
+        "user_id": user_id,
+        "agent_mode": READ_ONLY_AGENT_MODE,
+        "plan": plan,
+        "tool_calls": tool_calls,
+        "log_search_preset": preset,
+        "log_search_minutes": minutes,
+        "matched_events": matched_events,
+        "status": status,
+        "latency_ms": latency_ms,
+        "answer_preview": answer_preview[:500],
+    }
+    TraceRepository(TRACE_TABLE_NAME).save_trace(_serialize_trace_value(trace_record))
+
+
+def _save_investigation_agent_trace(
+    request_id,
+    path,
+    user_id,
+    plan,
+    tool_calls,
+    minutes,
+    matched_events,
+    inspected_trace_count,
+    inspected_trace_statuses,
+    status,
+    latency_ms,
+    answer_preview,
+):
+    trace_record = {
+        "request_id": request_id,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "path": path,
+        "task": INVESTIGATE_RECENT_BLOCKS_TASK,
+        "user_id": user_id,
+        "agent_mode": READ_ONLY_AGENT_MODE,
+        "plan": plan,
+        "tool_calls": tool_calls,
+        "log_search_preset": "blocked",
+        "log_search_minutes": minutes,
+        "matched_events": matched_events,
+        "inspected_trace_count": inspected_trace_count,
+        "inspected_trace_statuses": inspected_trace_statuses,
+        "status": status,
+        "latency_ms": latency_ms,
+        "answer_preview": answer_preview[:500],
+    }
+    TraceRepository(TRACE_TABLE_NAME).save_trace(_serialize_trace_value(trace_record))
+
+
 def _summarize_trace_result(trace_record):
     status = trace_record.get("status")
     if status == "blocked":
@@ -152,6 +249,32 @@ def _build_trace_summary(target_request_id, trace_record):
         "latencyMs": int(trace_record.get("latency_ms", 0) or 0),
         "answerPreview": trace_record.get("answer_preview"),
     }
+
+
+def _build_investigation_trace_summary(target_request_id, trace_record):
+    if trace_record is None:
+        return {
+            "targetRequestId": target_request_id,
+            "status": "not_found",
+        }
+
+    return {
+        "targetRequestId": target_request_id,
+        "status": trace_record.get("status"),
+        "guardrailAction": trace_record.get("guardrail_action"),
+        "guardrailReason": trace_record.get("guardrail_reason"),
+        "guardrailMatchedRule": trace_record.get("guardrail_matched_rule"),
+    }
+
+
+def _build_tool_call_with_metadata(tool_name: str, status: str, **extra_fields) -> dict:
+    tool_call = build_tool_call(tool_name, status)
+    tool_call.update(extra_fields)
+    return tool_call
+
+
+def _tool_is_allowlisted(tool_name):
+    return tool_name in ALLOWED_TOOLS
 
 
 def lambda_handler(event, context):
@@ -249,22 +372,60 @@ def lambda_handler(event, context):
         )
         return json_response(status_code, response_body)
 
-    if "trace_lookup" not in ALLOWED_TOOLS:
-        log_json(
-            LOGGER,
-            logging.ERROR,
-            "trace lookup tool not allowlisted",
-            request_id=request_id,
-            path=path,
-            user_id=user_id,
-            task=payload["task"],
-        )
-        return json_response(500, {"message": "trace_lookup tool is not configured."})
+    if payload["task"] == INSPECT_TRACE_TASK:
+        if not _tool_is_allowlisted("trace_lookup"):
+            log_json(
+                LOGGER,
+                logging.ERROR,
+                "trace lookup tool not allowlisted",
+                request_id=request_id,
+                path=path,
+                user_id=user_id,
+                task=payload["task"],
+            )
+            return json_response(500, {"message": "trace_lookup tool is not configured."})
 
-    trace_record = lookup_trace(payload["requestId"], TRACE_TABLE_NAME)
-    if trace_record is None:
-        tool_calls = [build_tool_call("trace_lookup", "not_found")]
-        answer = "No trace record was found for the provided requestId."
+        trace_record = lookup_trace(payload["requestId"], TRACE_TABLE_NAME)
+        if trace_record is None:
+            tool_calls = [build_tool_call("trace_lookup", "not_found")]
+            answer = "No trace record was found for the provided requestId."
+            latency_ms = int((perf_counter() - started_at) * 1000)
+            _save_inspect_trace_agent_trace(
+                request_id,
+                path,
+                user_id,
+                payload["requestId"],
+                plan,
+                tool_calls,
+                "not_found",
+                latency_ms,
+                answer,
+            )
+            return json_response(
+                404,
+                {
+                    "requestId": request_id,
+                    "agentMode": READ_ONLY_AGENT_MODE,
+                    "task": payload["task"],
+                    "toolCalls": tool_calls,
+                    "answer": answer,
+                    "status": "not_found",
+                },
+            )
+
+        tool_calls = [build_tool_call("trace_lookup", "completed")]
+        trace_summary = _build_trace_summary(payload["requestId"], trace_record)
+        answer = _summarize_trace_result(trace_record)
+        response_body = {
+            "requestId": request_id,
+            "agentMode": READ_ONLY_AGENT_MODE,
+            "task": payload["task"],
+            "plan": plan,
+            "toolCalls": tool_calls,
+            "trace": trace_summary,
+            "answer": answer,
+            "status": "completed",
+        }
         latency_ms = int((perf_counter() - started_at) * 1000)
         _save_inspect_trace_agent_trace(
             request_id,
@@ -273,57 +434,195 @@ def lambda_handler(event, context):
             payload["requestId"],
             plan,
             tool_calls,
-            "not_found",
+            "completed",
             latency_ms,
             answer,
         )
-        return json_response(
-            404,
-            {
-                "requestId": request_id,
-                "agentMode": READ_ONLY_AGENT_MODE,
-                "task": payload["task"],
-                "toolCalls": tool_calls,
-                "answer": answer,
-                "status": "not_found",
-            },
-        )
 
-    tool_calls = [build_tool_call("trace_lookup", "completed")]
-    trace_summary = _build_trace_summary(payload["requestId"], trace_record)
-    answer = _summarize_trace_result(trace_record)
+        log_json(
+            LOGGER,
+            logging.INFO,
+            "agent trace inspection completed",
+            request_id=request_id,
+            path=path,
+            user_id=user_id,
+            task=payload["task"],
+            target_request_id=payload["requestId"],
+            agent_mode=READ_ONLY_AGENT_MODE,
+            tool_calls=tool_calls,
+            status=response_body["status"],
+            latency_ms=latency_ms,
+        )
+        return json_response(200, response_body)
+
+    if payload["task"] == INVESTIGATE_RECENT_BLOCKS_TASK:
+        if not _tool_is_allowlisted("log_search"):
+            log_json(
+                LOGGER,
+                logging.ERROR,
+                "log search tool not allowlisted",
+                request_id=request_id,
+                path=path,
+                user_id=user_id,
+                task=payload["task"],
+            )
+            return json_response(500, {"message": "log_search tool is not configured."})
+
+        if not _tool_is_allowlisted("trace_lookup"):
+            log_json(
+                LOGGER,
+                logging.ERROR,
+                "trace lookup tool not allowlisted",
+                request_id=request_id,
+                path=path,
+                user_id=user_id,
+                task=payload["task"],
+            )
+            return json_response(500, {"message": "trace_lookup tool is not configured."})
+
+        if not RAG_QUERY_LOG_GROUP_NAME:
+            return json_response(500, {"message": "RAG query log group is not configured."})
+
+        search_result = search_logs(
+            RAG_QUERY_LOG_GROUP_NAME,
+            "blocked",
+            payload["minutes"],
+            limit=10,
+        )
+        candidate_request_ids = extract_request_ids_from_log_events(search_result["events"], limit=3)
+        inspected_traces = []
+        inspected_trace_statuses = []
+        for target_request_id in candidate_request_ids:
+            trace_record = lookup_trace(target_request_id, TRACE_TABLE_NAME)
+            trace_summary = _build_investigation_trace_summary(target_request_id, trace_record)
+            inspected_traces.append(trace_summary)
+            inspected_trace_statuses.append(trace_summary["status"])
+
+        tool_calls = [
+            build_tool_call("log_search", "completed"),
+            _build_tool_call_with_metadata(
+                "trace_lookup",
+                "completed",
+                targetRequestCount=len(candidate_request_ids),
+            ),
+        ]
+        log_summary = {
+            "preset": search_result["preset"],
+            "minutes": search_result["minutes"],
+            "matchedEvents": search_result["matchedEvents"],
+        }
+        answer = summarize_investigation(log_summary, inspected_traces)
+        response_body = {
+            "requestId": request_id,
+            "agentMode": READ_ONLY_AGENT_MODE,
+            "task": payload["task"],
+            "plan": plan,
+            "toolCalls": tool_calls,
+            "logSummary": log_summary,
+            "inspectedTraces": inspected_traces,
+            "answer": answer,
+            "status": "completed",
+        }
+        latency_ms = int((perf_counter() - started_at) * 1000)
+        _save_investigation_agent_trace(
+            request_id,
+            path,
+            user_id,
+            plan,
+            tool_calls,
+            search_result["minutes"],
+            search_result["matchedEvents"],
+            len(inspected_traces),
+            inspected_trace_statuses,
+            response_body["status"],
+            latency_ms,
+            answer,
+        )
+        log_json(
+            LOGGER,
+            logging.INFO,
+            "agent recent block investigation completed",
+            request_id=request_id,
+            path=path,
+            user_id=user_id,
+            task=payload["task"],
+            log_search_preset=log_summary["preset"],
+            log_search_minutes=log_summary["minutes"],
+            matched_events=log_summary["matchedEvents"],
+            inspected_trace_count=len(inspected_traces),
+            agent_mode=READ_ONLY_AGENT_MODE,
+            tool_calls=tool_calls,
+            status=response_body["status"],
+            latency_ms=latency_ms,
+        )
+        return json_response(200, response_body)
+
+    if not _tool_is_allowlisted("log_search"):
+        log_json(
+            LOGGER,
+            logging.ERROR,
+            "log search tool not allowlisted",
+            request_id=request_id,
+            path=path,
+            user_id=user_id,
+            task=payload["task"],
+        )
+        return json_response(500, {"message": "log_search tool is not configured."})
+
+    if not RAG_QUERY_LOG_GROUP_NAME:
+        return json_response(500, {"message": "RAG query log group is not configured."})
+
+    search_result = search_logs(
+        RAG_QUERY_LOG_GROUP_NAME,
+        payload["preset"],
+        payload["minutes"],
+        limit=10,
+    )
+    tool_calls = [build_tool_call("log_search", "completed")]
+    answer = (
+        f"Found {search_result['matchedEvents']} matching log event(s) for preset "
+        f"{search_result['preset']} in the last {search_result['minutes']} minutes."
+    )
     response_body = {
         "requestId": request_id,
         "agentMode": READ_ONLY_AGENT_MODE,
         "task": payload["task"],
         "plan": plan,
         "toolCalls": tool_calls,
-        "trace": trace_summary,
+        "logSummary": {
+            "preset": search_result["preset"],
+            "minutes": search_result["minutes"],
+            "matchedEvents": search_result["matchedEvents"],
+        },
+        "events": search_result["events"],
         "answer": answer,
         "status": "completed",
     }
     latency_ms = int((perf_counter() - started_at) * 1000)
-    _save_inspect_trace_agent_trace(
+    _save_search_logs_agent_trace(
         request_id,
         path,
         user_id,
-        payload["requestId"],
         plan,
         tool_calls,
-        "completed",
+        search_result["preset"],
+        search_result["minutes"],
+        search_result["matchedEvents"],
+        response_body["status"],
         latency_ms,
         answer,
     )
-
     log_json(
         LOGGER,
         logging.INFO,
-        "agent trace inspection completed",
+        "agent log search completed",
         request_id=request_id,
         path=path,
         user_id=user_id,
         task=payload["task"],
-        target_request_id=payload["requestId"],
+        log_search_preset=search_result["preset"],
+        log_search_minutes=search_result["minutes"],
+        matched_events=search_result["matchedEvents"],
         agent_mode=READ_ONLY_AGENT_MODE,
         tool_calls=tool_calls,
         status=response_body["status"],

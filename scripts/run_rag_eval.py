@@ -207,6 +207,60 @@ def _evaluate_case(case_definition, response):
             and has_expected_tool
             and trace.get("status") == expected_trace_status
         )
+    elif case_type == "agent_search_logs":
+        expected_status = case_definition.get("expectedStatus")
+        expected_tool_name = case_definition.get("expectedToolName")
+        expected_preset = case_definition.get("preset")
+        tool_calls = response_body.get("toolCalls", [])
+        log_summary = response_body.get("logSummary", {})
+
+        has_expected_tool = any(
+            isinstance(tool_call, dict) and tool_call.get("toolName") == expected_tool_name
+            for tool_call in tool_calls
+        )
+        if response_status != expected_status:
+            notes.append(f"expected status '{expected_status}' but got '{response_status}'")
+        if not has_expected_tool:
+            notes.append(f"expected tool '{expected_tool_name}' not found")
+        if log_summary.get("preset") != expected_preset:
+            notes.append(f"expected logSummary.preset '{expected_preset}' but got '{log_summary.get('preset')}'")
+        if "matchedEvents" not in log_summary:
+            notes.append("expected logSummary.matchedEvents to exist")
+
+        passed = (
+            response_status == expected_status
+            and has_expected_tool
+            and log_summary.get("preset") == expected_preset
+            and "matchedEvents" in log_summary
+        )
+    elif case_type == "agent_investigate_recent_blocks":
+        expected_status = case_definition.get("expectedStatus")
+        expected_tool_names = case_definition.get("expectedToolNames", [])
+        tool_calls = response_body.get("toolCalls", [])
+        log_summary = response_body.get("logSummary", {})
+        inspected_traces = response_body.get("inspectedTraces")
+
+        tool_names = {
+            tool_call.get("toolName")
+            for tool_call in tool_calls
+            if isinstance(tool_call, dict)
+        }
+        missing_tool_names = [tool_name for tool_name in expected_tool_names if tool_name not in tool_names]
+        if response_status != expected_status:
+            notes.append(f"expected status '{expected_status}' but got '{response_status}'")
+        if missing_tool_names:
+            notes.append(f"expected tools not found: {', '.join(missing_tool_names)}")
+        if "matchedEvents" not in log_summary:
+            notes.append("expected logSummary.matchedEvents to exist")
+        if not isinstance(inspected_traces, list):
+            notes.append("expected inspectedTraces to exist")
+
+        passed = (
+            response_status == expected_status
+            and not missing_tool_names
+            and "matchedEvents" in log_summary
+            and isinstance(inspected_traces, list)
+        )
     elif case_type in {"out_of_source", "metadata_boundary"}:
         normalized_answer = _normalize_text(answer)
         no_answer_detected = NO_ANSWER_TEXT.casefold() in normalized_answer
@@ -320,6 +374,19 @@ def _build_request_payload(case_definition, results_by_case_id):
         return {
             "task": task,
             "requestId": _get_case_request_id(results_by_case_id, case_definition.get("targetCaseId")),
+        }
+
+    if case_definition.get("type") == "agent_search_logs":
+        return {
+            "task": task,
+            "preset": case_definition.get("preset", "raw"),
+            "minutes": case_definition.get("minutes", 60),
+        }
+
+    if case_definition.get("type") == "agent_investigate_recent_blocks":
+        return {
+            "task": task,
+            "minutes": case_definition.get("minutes", 120),
         }
 
     payload = {"question": case_definition.get("question", "")}

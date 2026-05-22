@@ -214,7 +214,7 @@ Resources:
     Properties:
       CodeUri: ../../backend/lambda
       Handler: agent_run.handler.lambda_handler
-      Description: Read-only agent entrypoint that orchestrates the allowlisted rag_query tool.
+      Description: Read-only agent entrypoint that orchestrates allowlisted inspection tools.
       Environment:
         Variables:
           DOCUMENT_CHUNKS_TABLE_NAME: !Ref DocumentChunksTable
@@ -222,6 +222,7 @@ Resources:
           BEDROCK_MODEL_ID: apac.amazon.nova-lite-v1:0
           EMBEDDING_MODEL_ID: cohere.embed-english-v3
           MIN_SIMILARITY_SCORE: "0.25"
+          RAG_QUERY_LOG_GROUP_NAME: !Sub "/aws/lambda/${RagQueryFunction}"
       Policies:
         - Version: '2012-10-17'
           Statement:
@@ -238,6 +239,10 @@ Resources:
               Action:
                 - bedrock:InvokeModel
                 - bedrock:Converse
+              Resource: "*"
+            - Effect: Allow
+              Action:
+                - logs:FilterLogEvents
               Resource: "*"
       Events:
         PostAgentRun:

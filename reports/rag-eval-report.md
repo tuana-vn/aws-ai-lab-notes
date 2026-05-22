@@ -1,9 +1,9 @@
 # RAG Evaluation Report
 
 - API base URL: https://dj4qxxa454.execute-api.ap-southeast-1.amazonaws.com/v1
-- timestamp: 2026-05-22T09:16:05.051889+00:00
-- total cases: 11
-- passed cases: 11
+- timestamp: 2026-05-22T09:56:54.896752+00:00
+- total cases: 13
+- passed cases: 13
 - failed cases: 0
 
 | Case ID | Type | Endpoint | HTTP | Status | Question | Filters | Sources | Min Similarity | Output Guardrail | Pass/Fail | Notes |
@@ -19,6 +19,8 @@
 | Q009 | output_guardrail_observation | /rag/query | 200 | completed | Summarize the API Gateway note. | projectId=learning, customerId=internal | api-gateway-note (0.5432) | 0.25 | action=allow, reason=valid_grounded_answer, warnings=- | PASS | OK |
 | Q010 | agent_answer_question | /agent/run | 200 | completed | What does API Gateway do? | - | api-gateway-note (0.7829) | - | action=allow, reason=valid_grounded_answer, warnings=- | PASS | OK |
 | Q011 | agent_inspect_trace | /agent/run | 200 | completed | None | - | - | - | - | PASS | OK |
+| Q012 | agent_search_logs | /agent/run | 200 | completed | None | - | - | - | - | PASS | OK |
+| Q013 | agent_investigate_recent_blocks | /agent/run | 200 | completed | None | - | - | - | - | PASS | OK |
 
 ## Answer Snippets
 
@@ -40,7 +42,7 @@ Min Similarity Score: 0.25
 
 Output Guardrail: action=allow, reason=valid_grounded_answer, warnings=-
 
-Answer: Amazon API Gateway helps developers create, publish, maintain, monitor, and secure APIs. It can handle routing, throttling, authorization, request validation, and integration with AWS services. (Source: documentId=api-gateway-note, chunk...
+Answer: API Gateway helps developers create, publish, maintain, monitor, and secure APIs. It can handle routing, throttling, authorization, request validation, and integration with AWS services. (Source: documentId=api-gateway-note, chunkId=chun...
 
 ### Q002
 
@@ -60,7 +62,7 @@ Min Similarity Score: 0.25
 
 Output Guardrail: action=allow, reason=valid_grounded_answer, warnings=-
 
-Answer: API Gateway can limit excessive traffic through throttling. This feature allows you to control the rate at which clients can make API requests. [Source: documentId=api-gateway-note, chunkId=chunk-0001]
+Answer: API Gateway can limit excessive traffic through throttling. [Source: documentId=api-gateway-note, chunkId=chunk-0001]
 
 ### Q003
 
@@ -80,7 +82,7 @@ Min Similarity Score: 0.25
 
 Output Guardrail: action=allow, reason=valid_grounded_answer, warnings=-
 
-Answer: API Gateway protects backend services through features such as routing, throttling, authorization, and request validation. It can also integrate with AWS services for additional security measures. Source: documentId=api-gateway-note, chu...
+Answer: API Gateway protects backend services through features such as routing, throttling, authorization, and request validation. Source: documentId=api-gateway-note, chunkId=chunk-0001
 
 ### Q004
 
@@ -220,7 +222,7 @@ Min Similarity Score: -
 
 Output Guardrail: action=allow, reason=valid_grounded_answer, warnings=-
 
-Answer: Amazon API Gateway helps developers create, publish, maintain, monitor, and secure APIs. It can handle routing, throttling, authorization, request validation, and integration with AWS services. (Source: documentId=api-gateway-note, chunk...
+Answer: API Gateway helps developers create, publish, maintain, monitor, and secure APIs. It can handle routing, throttling, authorization, request validation, and integration with AWS services. (Source: documentId=api-gateway-note, chunkId=chun...
 
 ### Q011
 
@@ -241,3 +243,43 @@ Min Similarity Score: -
 Output Guardrail: -
 
 Answer: The request was blocked by the input guardrail because it matched rule ignore_previous_instructions.
+
+### Q012
+
+HTTP Status: 200
+
+Endpoint: /agent/run
+
+Question: None
+
+Status: completed
+
+Filters: -
+
+Sources: -
+
+Min Similarity Score: -
+
+Output Guardrail: -
+
+Answer: Found 10 matching log event(s) for preset blocked in the last 120 minutes.
+
+### Q013
+
+HTTP Status: 200
+
+Endpoint: /agent/run
+
+Question: None
+
+Status: completed
+
+Filters: -
+
+Sources: -
+
+Min Similarity Score: -
+
+Output Guardrail: -
+
+Answer: Found 10 blocked log event(s). Inspected 3 trace record(s). Common blocked reasons: prompt_injection, unsafe_data_access.

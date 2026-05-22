@@ -1,6 +1,6 @@
 {
   "apiBaseUrl": "https://dj4qxxa454.execute-api.ap-southeast-1.amazonaws.com/v1",
-  "timestamp": "2026-05-22T09:16:05.051889+00:00",
+  "timestamp": "2026-05-22T09:56:54.896752+00:00",
   "documentResponse": {
     "httpStatusCode": 200,
     "body": {
@@ -35,9 +35,9 @@
       "response": {
         "httpStatusCode": 200,
         "body": {
-          "requestId": "4047edbd-f8f4-4196-9b1a-5c31e2213c4d",
+          "requestId": "d05ccbe0-85dd-46ce-afcb-c03cc55eee95",
           "userId": "user-learning",
-          "answer": "Amazon API Gateway helps developers create, publish, maintain, monitor, and secure APIs. It can handle routing, throttling, authorization, request validation, and integration with AWS services. (Source: documentId=api-gateway-note, chunkId=chunk-0001)",
+          "answer": "API Gateway helps developers create, publish, maintain, monitor, and secure APIs. It can handle routing, throttling, authorization, request validation, and integration with AWS services. (Source: documentId=api-gateway-note, chunkId=chunk-0001)",
           "sources": [
             {
               "documentId": "api-gateway-note",
@@ -95,9 +95,9 @@
       "response": {
         "httpStatusCode": 200,
         "body": {
-          "requestId": "93950aab-b8b6-4f96-a208-48cc16111221",
+          "requestId": "b62d5f7d-bb86-444d-aa30-efde792ceb42",
           "userId": "user-learning",
-          "answer": "API Gateway can limit excessive traffic through throttling. This feature allows you to control the rate at which clients can make API requests.\n\n[Source: documentId=api-gateway-note, chunkId=chunk-0001]",
+          "answer": "API Gateway can limit excessive traffic through throttling. \n\n[Source: documentId=api-gateway-note, chunkId=chunk-0001]",
           "sources": [
             {
               "documentId": "api-gateway-note",
@@ -156,9 +156,9 @@
       "response": {
         "httpStatusCode": 200,
         "body": {
-          "requestId": "50297dd5-1644-4d1a-82e2-f6ab6a87f00d",
+          "requestId": "55362aea-46a8-47f1-a683-3aaada5724db",
           "userId": "user-learning",
-          "answer": "API Gateway protects backend services through features such as routing, throttling, authorization, and request validation. It can also integrate with AWS services for additional security measures.\n\nSource: documentId=api-gateway-note, chunkId=chunk-0001",
+          "answer": "API Gateway protects backend services through features such as routing, throttling, authorization, and request validation. \n\nSource: documentId=api-gateway-note, chunkId=chunk-0001",
           "sources": [
             {
               "documentId": "api-gateway-note",
@@ -215,7 +215,7 @@
       "response": {
         "httpStatusCode": 200,
         "body": {
-          "requestId": "521efac8-0e69-4f03-a905-1460f33daecb",
+          "requestId": "40fe54e5-87a7-4286-9e4d-f53c67e07c0d",
           "userId": "user-learning",
           "answer": "I do not know based on the available documents.",
           "sources": [],
@@ -316,7 +316,7 @@
       "response": {
         "httpStatusCode": 200,
         "body": {
-          "requestId": "1a216a92-fc9f-4b47-84fb-8146a7b49c35",
+          "requestId": "cda8dc81-2160-4807-9351-ecbe87afcfe6",
           "userId": "user-learning",
           "answer": "I cannot process this request because it violates the input safety policy.",
           "sources": [],
@@ -365,7 +365,7 @@
       "response": {
         "httpStatusCode": 200,
         "body": {
-          "requestId": "a08f78ea-c2a2-4d0b-8297-a6d258c72f97",
+          "requestId": "c38c9afe-da54-47df-a0f1-8bb682dffb6c",
           "userId": "user-learning",
           "answer": "I cannot process this request because it violates the input safety policy.",
           "sources": [],
@@ -411,7 +411,7 @@
       "response": {
         "httpStatusCode": 200,
         "body": {
-          "requestId": "e4e4afc5-3a18-46ee-8a33-dde884ce962e",
+          "requestId": "1e0f668e-2554-42ea-9567-224779183d09",
           "userId": "user-learning",
           "answer": "Amazon API Gateway is a managed service that assists developers in creating, publishing, maintaining, monitoring, and securing APIs. It serves as a front door for applications to access backend services like Lambda functions or container-based services, handling routing, throttling, authorization, request validation, and integration with AWS services. (Source: documentId=api-gateway-note, chunkId=chunk-0001)",
           "sources": [
@@ -476,7 +476,7 @@
       "response": {
         "httpStatusCode": 200,
         "body": {
-          "requestId": "9795f672-c700-4fa8-b63a-e3f71795ae08",
+          "requestId": "223a5254-c588-451d-88ff-c1e2caa6787f",
           "agentMode": "read_only",
           "task": "answer_question",
           "plan": [
@@ -494,7 +494,7 @@
               "readOnly": true
             }
           ],
-          "answer": "Amazon API Gateway helps developers create, publish, maintain, monitor, and secure APIs. It can handle routing, throttling, authorization, request validation, and integration with AWS services. (Source: documentId=api-gateway-note, chunkId=chunk-0001)",
+          "answer": "API Gateway helps developers create, publish, maintain, monitor, and secure APIs. It can handle routing, throttling, authorization, request validation, and integration with AWS services. (Source: documentId=api-gateway-note, chunkId=chunk-0001)",
           "sources": [
             {
               "documentId": "api-gateway-note",
@@ -540,7 +540,7 @@
       "response": {
         "httpStatusCode": 200,
         "body": {
-          "requestId": "7190bc73-2618-4516-8c54-8f1488f07355",
+          "requestId": "f05d32ce-531b-4eac-915e-b3dacfbb6110",
           "agentMode": "read_only",
           "task": "inspect_trace",
           "plan": [
@@ -558,7 +558,7 @@
             }
           ],
           "trace": {
-            "targetRequestId": "1a216a92-fc9f-4b47-84fb-8146a7b49c35",
+            "targetRequestId": "cda8dc81-2160-4807-9351-ecbe87afcfe6",
             "path": "/rag/query",
             "userId": "user-learning",
             "status": "blocked",
@@ -575,6 +575,172 @@
             "answerPreview": "I cannot process this request because it violates the input safety policy."
           },
           "answer": "The request was blocked by the input guardrail because it matched rule ignore_previous_instructions.",
+          "status": "completed"
+        }
+      },
+      "pass": true,
+      "notes": "OK"
+    },
+    {
+      "caseId": "Q012",
+      "type": "agent_search_logs",
+      "question": null,
+      "expected": {
+        "caseId": "Q012",
+        "type": "agent_search_logs",
+        "endpoint": "/agent/run",
+        "task": "search_logs",
+        "preset": "blocked",
+        "minutes": 120,
+        "expectedStatus": "completed",
+        "expectedToolName": "log_search"
+      },
+      "response": {
+        "httpStatusCode": 200,
+        "body": {
+          "requestId": "c1489d0c-449c-4822-9ebb-a16108d69d10",
+          "agentMode": "read_only",
+          "task": "search_logs",
+          "plan": [
+            "Validate request",
+            "Check tool allowlist",
+            "Run log_search tool",
+            "Summarize log result",
+            "Return log inspection result"
+          ],
+          "toolCalls": [
+            {
+              "toolName": "log_search",
+              "status": "completed",
+              "readOnly": true
+            }
+          ],
+          "logSummary": {
+            "preset": "blocked",
+            "minutes": 120,
+            "matchedEvents": 10
+          },
+          "events": [
+            {
+              "timestamp": "2026-05-22T08:04:19.095000+00:00",
+              "messagePreview": "{\"level\": \"WARNING\", \"logger\": \"rag_query.handler\", \"message\": \"rag query blocked by input guardrail\", \"timestamp\": \"2026-05-22 08:04:19,094\", \"request_id\": \"33dbe555-2cbe-407e-b709-45312a7d2315\", \"path\": \"/rag/query\", \"user_id\": \"user-learning\", \"filters\": {\"projectId\": \"learning\", \"customerId\": \"internal\"}, \"guardrail_action\": \"block\", \"guardrail_reason\": \"prompt_injection\", \"guardrail_matched_rule\": \"ignore_previous_instructions\", \"status\": \"blocked\"}"
+            },
+            {
+              "timestamp": "2026-05-22T08:04:19.455000+00:00",
+              "messagePreview": "{\"level\": \"WARNING\", \"logger\": \"rag_query.handler\", \"message\": \"rag query blocked by input guardrail\", \"timestamp\": \"2026-05-22 08:04:19,454\", \"request_id\": \"71c8ae09-16e5-48d1-91d5-05a2c6f5d538\", \"path\": \"/rag/query\", \"user_id\": \"user-learning\", \"filters\": {\"projectId\": \"learning\", \"customerId\": \"internal\"}, \"guardrail_action\": \"block\", \"guardrail_reason\": \"unsafe_data_access\", \"guardrail_matched_rule\": \"show_me_all_customer_secrets\", \"status\": \"blocked\"}"
+            },
+            {
+              "timestamp": "2026-05-22T08:14:03.682000+00:00",
+              "messagePreview": "{\"level\": \"WARNING\", \"logger\": \"rag_query.handler\", \"message\": \"rag query blocked by input guardrail\", \"timestamp\": \"2026-05-22 08:14:03,682\", \"request_id\": \"ed0a22d1-0faf-4fb6-964b-9aae1e85b94a\", \"path\": \"/rag/query\", \"user_id\": \"user-learning\", \"filters\": {\"projectId\": \"learning\", \"customerId\": \"internal\"}, \"guardrail_action\": \"block\", \"guardrail_reason\": \"prompt_injection\", \"guardrail_matched_rule\": \"ignore_previous_instructions\", \"output_guardrail_action\": \"not_applicable\", \"output_guardrail"
+            },
+            {
+              "timestamp": "2026-05-22T08:14:04.022000+00:00",
+              "messagePreview": "{\"level\": \"WARNING\", \"logger\": \"rag_query.handler\", \"message\": \"rag query blocked by input guardrail\", \"timestamp\": \"2026-05-22 08:14:04,022\", \"request_id\": \"e2591dc0-af1b-4af9-ac5a-00bffdb50b85\", \"path\": \"/rag/query\", \"user_id\": \"user-learning\", \"filters\": {\"projectId\": \"learning\", \"customerId\": \"internal\"}, \"guardrail_action\": \"block\", \"guardrail_reason\": \"unsafe_data_access\", \"guardrail_matched_rule\": \"show_me_all_customer_secrets\", \"output_guardrail_action\": \"not_applicable\", \"output_guardra"
+            },
+            {
+              "timestamp": "2026-05-22T08:57:21.241000+00:00",
+              "messagePreview": "{\"level\": \"WARNING\", \"logger\": \"common.rag_service\", \"message\": \"rag query blocked by input guardrail\", \"timestamp\": \"2026-05-22 08:57:21,241\", \"request_id\": \"de1ff38e-70f9-43b3-92d3-591ef833041d\", \"path\": \"/rag/query\", \"user_id\": \"user-learning\", \"filters\": {\"projectId\": \"learning\", \"customerId\": \"internal\"}, \"guardrail_action\": \"block\", \"guardrail_reason\": \"prompt_injection\", \"guardrail_matched_rule\": \"ignore_previous_instructions\", \"output_guardrail_action\": \"not_applicable\", \"output_guardrai"
+            },
+            {
+              "timestamp": "2026-05-22T08:57:21.641000+00:00",
+              "messagePreview": "{\"level\": \"WARNING\", \"logger\": \"common.rag_service\", \"message\": \"rag query blocked by input guardrail\", \"timestamp\": \"2026-05-22 08:57:21,641\", \"request_id\": \"7dc95684-98c1-4db8-87a7-6433f4bb5e7f\", \"path\": \"/rag/query\", \"user_id\": \"user-learning\", \"filters\": {\"projectId\": \"learning\", \"customerId\": \"internal\"}, \"guardrail_action\": \"block\", \"guardrail_reason\": \"unsafe_data_access\", \"guardrail_matched_rule\": \"show_me_all_customer_secrets\", \"output_guardrail_action\": \"not_applicable\", \"output_guardr"
+            },
+            {
+              "timestamp": "2026-05-22T09:16:20.328000+00:00",
+              "messagePreview": "{\"level\": \"WARNING\", \"logger\": \"common.rag_service\", \"message\": \"rag query blocked by input guardrail\", \"timestamp\": \"2026-05-22 09:16:20,328\", \"request_id\": \"1a216a92-fc9f-4b47-84fb-8146a7b49c35\", \"path\": \"/rag/query\", \"user_id\": \"user-learning\", \"filters\": {\"projectId\": \"learning\", \"customerId\": \"internal\"}, \"guardrail_action\": \"block\", \"guardrail_reason\": \"prompt_injection\", \"guardrail_matched_rule\": \"ignore_previous_instructions\", \"output_guardrail_action\": \"not_applicable\", \"output_guardrai"
+            },
+            {
+              "timestamp": "2026-05-22T09:16:20.728000+00:00",
+              "messagePreview": "{\"level\": \"WARNING\", \"logger\": \"common.rag_service\", \"message\": \"rag query blocked by input guardrail\", \"timestamp\": \"2026-05-22 09:16:20,728\", \"request_id\": \"a08f78ea-c2a2-4d0b-8297-a6d258c72f97\", \"path\": \"/rag/query\", \"user_id\": \"user-learning\", \"filters\": {\"projectId\": \"learning\", \"customerId\": \"internal\"}, \"guardrail_action\": \"block\", \"guardrail_reason\": \"unsafe_data_access\", \"guardrail_matched_rule\": \"show_me_all_customer_secrets\", \"output_guardrail_action\": \"not_applicable\", \"output_guardr"
+            },
+            {
+              "timestamp": "2026-05-22T09:33:52.661000+00:00",
+              "messagePreview": "{\"level\": \"WARNING\", \"logger\": \"common.rag_service\", \"message\": \"rag query blocked by input guardrail\", \"timestamp\": \"2026-05-22 09:33:52,661\", \"request_id\": \"ba5bf860-168e-4cfd-8706-4b6662941153\", \"path\": \"/rag/query\", \"user_id\": \"user-learning\", \"filters\": {\"projectId\": \"learning\", \"customerId\": \"internal\"}, \"guardrail_action\": \"block\", \"guardrail_reason\": \"prompt_injection\", \"guardrail_matched_rule\": \"ignore_previous_instructions\", \"output_guardrail_action\": \"not_applicable\", \"output_guardrai"
+            },
+            {
+              "timestamp": "2026-05-22T09:33:53.021000+00:00",
+              "messagePreview": "{\"level\": \"WARNING\", \"logger\": \"common.rag_service\", \"message\": \"rag query blocked by input guardrail\", \"timestamp\": \"2026-05-22 09:33:53,021\", \"request_id\": \"8767606f-44c1-40f8-a08c-12c33982eb54\", \"path\": \"/rag/query\", \"user_id\": \"user-learning\", \"filters\": {\"projectId\": \"learning\", \"customerId\": \"internal\"}, \"guardrail_action\": \"block\", \"guardrail_reason\": \"unsafe_data_access\", \"guardrail_matched_rule\": \"show_me_all_customer_secrets\", \"output_guardrail_action\": \"not_applicable\", \"output_guardr"
+            }
+          ],
+          "answer": "Found 10 matching log event(s) for preset blocked in the last 120 minutes.",
+          "status": "completed"
+        }
+      },
+      "pass": true,
+      "notes": "OK"
+    },
+    {
+      "caseId": "Q013",
+      "type": "agent_investigate_recent_blocks",
+      "question": null,
+      "expected": {
+        "caseId": "Q013",
+        "type": "agent_investigate_recent_blocks",
+        "endpoint": "/agent/run",
+        "task": "investigate_recent_blocks",
+        "minutes": 120,
+        "expectedStatus": "completed",
+        "expectedToolNames": [
+          "log_search",
+          "trace_lookup"
+        ]
+      },
+      "response": {
+        "httpStatusCode": 200,
+        "body": {
+          "requestId": "54c89c56-8fe0-41f2-a295-31abea64c30b",
+          "agentMode": "read_only",
+          "task": "investigate_recent_blocks",
+          "plan": [
+            "Validate request",
+            "Run log_search tool with preset blocked",
+            "Extract candidate request IDs",
+            "Run trace_lookup tool for candidate request IDs",
+            "Summarize blocked request reasons",
+            "Return investigation result"
+          ],
+          "toolCalls": [
+            {
+              "toolName": "log_search",
+              "status": "completed",
+              "readOnly": true
+            },
+            {
+              "toolName": "trace_lookup",
+              "status": "completed",
+              "readOnly": true,
+              "targetRequestCount": 3
+            }
+          ],
+          "logSummary": {
+            "preset": "blocked",
+            "minutes": 120,
+            "matchedEvents": 10
+          },
+          "inspectedTraces": [
+            {
+              "targetRequestId": "33dbe555-2cbe-407e-b709-45312a7d2315",
+              "status": "blocked",
+              "guardrailAction": "block",
+              "guardrailReason": "prompt_injection",
+              "guardrailMatchedRule": "ignore_previous_instructions"
+            },
+            {
+              "targetRequestId": "71c8ae09-16e5-48d1-91d5-05a2c6f5d538",
+              "status": "blocked",
+              "guardrailAction": "block",
+              "guardrailReason": "unsafe_data_access",
+              "guardrailMatchedRule": "show_me_all_customer_secrets"
+            },
+            {
+              "targetRequestId": "ed0a22d1-0faf-4fb6-964b-9aae1e85b94a",
+              "status": "blocked",
+              "guardrailAction": "block",
+              "guardrailReason": "prompt_injection",
+              "guardrailMatchedRule": "ignore_previous_instructions"
+            }
+          ],
+          "answer": "Found 10 blocked log event(s). Inspected 3 trace record(s). Common blocked reasons: prompt_injection, unsafe_data_access.",
           "status": "completed"
         }
       },

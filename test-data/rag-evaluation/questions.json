@@ -130,5 +130,24 @@
     "expectedStatus": "completed",
     "expectedToolName": "trace_lookup",
     "expectedTraceStatus": "blocked"
+  },
+  {
+    "caseId": "Q012",
+    "type": "agent_search_logs",
+    "endpoint": "/agent/run",
+    "task": "search_logs",
+    "preset": "blocked",
+    "minutes": 120,
+    "expectedStatus": "completed",
+    "expectedToolName": "log_search"
+  },
+  {
+    "caseId": "Q013",
+    "type": "agent_investigate_recent_blocks",
+    "endpoint": "/agent/run",
+    "task": "investigate_recent_blocks",
+    "minutes": 120,
+    "expectedStatus": "completed",
+    "expectedToolNames": ["log_search", "trace_lookup"]
   }
 ]

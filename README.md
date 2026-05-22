@@ -1,6 +1,6 @@
 # AWS AI Platform PoC
 
-This repository contains a minimal AWS backend foundation for an AI platform, now extended through Phase 6B with a mini RAG flow that stores document embeddings in DynamoDB, filters eligible chunks by metadata boundaries, validates requested retrieval scope against a simple caller policy, applies AWS-side throttling protections, blocks unsafe input patterns before retrieval, filters weak matches with a similarity threshold, validates output grounding signals, and exposes a controlled read-only agent wrapper around the same retrieval path.
+This repository contains a minimal AWS backend foundation for an AI platform, now extended through Phase 6D with a mini RAG flow that stores document embeddings in DynamoDB, filters eligible chunks by metadata boundaries, validates requested retrieval scope against a simple caller policy, applies AWS-side throttling protections, blocks unsafe input patterns before retrieval, filters weak matches with a similarity threshold, validates output grounding signals, and exposes a controlled read-only agent wrapper around the same retrieval path.
 
 ## Why this foundation exists
 
@@ -34,11 +34,16 @@ aws-ai-platform-poc/
         chunking.py
         document_repository.py
         embedding_client.py
+        investigation.py
+        log_search.py
         response.py
         logging.py
         retrieval.py
+        trace_lookup.py
         trace_repository.py
         vector_math.py
+      agent_run/
+        handler.py
       chat/
         handler.py
       documents/
@@ -545,7 +550,7 @@ curl -X POST "$API_BASE_URL/agent/run" \
   }'
 ```
 
-Future tools could include log search, RCA draft generation, or ticket draft generation, but any write-capable action should sit behind a stronger approval boundary than this learning-phase read-only skeleton.
+Future tools could include RCA draft generation or ticket draft creation, but any write-capable action should sit behind a stronger approval boundary than this learning-phase read-only skeleton.
 
 ## Phase 6B - Second Read-only Tool: trace_lookup
 
@@ -572,10 +577,39 @@ Example trace inspection request:
 }
 ```
 
-This keeps the agent useful for platform introspection without turning it into a write-capable automation system. Future tools can include log search, RCA draft generation, and ticket draft creation, but any write action should still require explicit human approval.
+This keeps the agent useful for platform introspection without turning it into a write-capable automation system. Future tools can include RCA draft generation and ticket draft creation, but any write action should still require explicit human approval.
 
-## Phase 2 Note
+## Phase 6C - Third Read-only Tool: log_search
 
-In ap-southeast-1, direct on-demand invocation of amazon.nova-lite-v1:0 was not supported.
-The PoC uses the inference profile ID:
-    apac.amazon.nova-lite-v1:0
+Phase 6C adds a third read-only tool: `log_search`. The agent now has three read-only tools:
+
+- `rag_query`
+- `trace_lookup`
+- `log_search`
+
+`log_search` lets the agent inspect recent runtime logs for the RAG path. This is useful for operational questions such as whether blocked requests have appeared recently, whether `no_source` traffic is increasing, or whether recent errors are visible in the backend log stream.
+
+This learning PoC keeps the implementation intentionally simple. Inside Lambda, the tool uses the CloudWatch Logs `FilterLogEvents` API through boto3 and returns only a small summary plus a capped set of recent matching events. It does not use Logs Insights in the Lambda path and it does not return large raw log payloads.
+
+Supported presets are:
+
+- `raw`
+- `blocked`
+- `no_source`
+- `errors`
+
+Production systems should go further than this learning tool. In a more complete platform, prefer stronger IAM scoping for log access, plus Logs Insights, metrics, dashboards, alarms, and richer operational workflows.
+
+## Phase 6D - Multi-tool Investigation Agent
+
+Phase 6D builds on Phase 6C by chaining existing read-only tools instead of adding a new one. The new `investigate_recent_blocks` task runs a bounded multi-tool workflow:
+
+- `log_search` with the `blocked` preset
+- request-id extraction from recent log previews
+- `trace_lookup` for up to three candidate request IDs
+
+This makes the agent more useful for explaining recent blocked requests while keeping the workflow deterministic, bounded, and read-only. The agent does not call Bedrock for this task, does not write to external systems, and only uses its existing allowlisted inspection tools.
+
+The workflow is intentionally small for a learning PoC. It searches a limited recent window, inspects at most three trace records, and returns a compact summary of blocked reasons when they can be determined.
+
+In production, this kind of investigation flow should be paired with stronger incident workflows, dashboards, alarms, richer observability tooling, and explicit human approval before any write-capable follow-up action is introduced.
