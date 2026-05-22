@@ -209,6 +209,43 @@ Resources:
             Path: /rag/query
             Method: post
 
+  AgentRunFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ../../backend/lambda
+      Handler: agent_run.handler.lambda_handler
+      Description: Read-only agent entrypoint that orchestrates the allowlisted rag_query tool.
+      Environment:
+        Variables:
+          DOCUMENT_CHUNKS_TABLE_NAME: !Ref DocumentChunksTable
+          TRACE_TABLE_NAME: !Ref AiPlatformRequestTrace
+          BEDROCK_MODEL_ID: apac.amazon.nova-lite-v1:0
+          EMBEDDING_MODEL_ID: cohere.embed-english-v3
+          MIN_SIMILARITY_SCORE: "0.25"
+      Policies:
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - dynamodb:Scan
+              Resource: !GetAtt DocumentChunksTable.Arn
+            - Effect: Allow
+              Action:
+                - dynamodb:PutItem
+              Resource: !GetAtt AiPlatformRequestTrace.Arn
+            - Effect: Allow
+              Action:
+                - bedrock:InvokeModel
+                - bedrock:Converse
+              Resource: "*"
+      Events:
+        PostAgentRun:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ApiGateway
+            Path: /agent/run
+            Method: post
+
 Outputs:
   ApiBaseUrl:
     Description: Base invoke URL for the deployed API stage.

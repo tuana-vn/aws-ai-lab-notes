@@ -106,5 +106,19 @@
     },
     "expectedStatus": "completed",
     "expectedDocumentId": "api-gateway-note"
+  },
+  {
+    "caseId": "Q010",
+    "type": "agent_answer_question",
+    "endpoint": "/agent/run",
+    "task": "answer_question",
+    "question": "What does API Gateway do?",
+    "filters": {
+      "projectId": "learning",
+      "customerId": "internal"
+    },
+    "expectedStatus": "completed",
+    "expectedDocumentId": "api-gateway-note",
+    "expectedAnswerKeywords": ["create", "publish", "secure", "APIs"]
   }
 ]

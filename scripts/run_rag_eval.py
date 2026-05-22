@@ -145,7 +145,7 @@ def _evaluate_case(case_definition, response):
             f"expected HTTP {expected_http_status_code} but got {response.get('httpStatusCode')}"
         )
 
-    if case_type in {"in_source", "semantic", "output_guardrail_observation"}:
+    if case_type in {"in_source", "semantic", "output_guardrail_observation", "agent_answer_question"}:
         expected_status = case_definition.get("expectedStatus")
         expected_document_id = case_definition.get("expectedDocumentId")
         expected_keywords = case_definition.get("expectedAnswerKeywords", [])
@@ -154,16 +154,34 @@ def _evaluate_case(case_definition, response):
         has_expected_source = expected_document_id in source_document_ids
         has_expected_keyword = _answer_contains_any_keyword(answer, expected_keywords)
 
+        agent_mode = response_body.get("agentMode")
+        task = response_body.get("task")
+        tool_calls = response_body.get("toolCalls", [])
+        has_rag_tool_call = any(
+            isinstance(tool_call, dict)
+            and tool_call.get("toolName") == "rag_query"
+            and tool_call.get("readOnly") is True
+            for tool_call in tool_calls
+        )
+
         if not status_matches:
             notes.append(f"expected status '{expected_status}' but got '{response_status}'")
         if not has_expected_source:
             notes.append(f"expected source '{expected_document_id}' not found")
         if expected_keywords and not has_expected_keyword:
             notes.append("answer did not contain any expected keyword")
+        if case_type == "agent_answer_question" and agent_mode != "read_only":
+            notes.append(f"expected agentMode 'read_only' but got '{agent_mode}'")
+        if case_type == "agent_answer_question" and task != case_definition.get("task"):
+            notes.append(f"expected task '{case_definition.get('task')}' but got '{task}'")
+        if case_type == "agent_answer_question" and not has_rag_tool_call:
+            notes.append("expected read-only rag_query tool call not found")
 
         passed = status_matches and has_expected_source and (
             has_expected_keyword if expected_keywords else True
         )
+        if case_type == "agent_answer_question":
+            passed = passed and agent_mode == "read_only" and task == case_definition.get("task") and has_rag_tool_call
     elif case_type in {"out_of_source", "metadata_boundary"}:
         normalized_answer = _normalize_text(answer)
         no_answer_detected = NO_ANSWER_TEXT.casefold() in normalized_answer
@@ -278,8 +296,8 @@ def _write_markdown_report(api_base_url, started_at, results):
         f"- passed cases: {passed_cases}",
         f"- failed cases: {failed_cases}",
         "",
-        "| Case ID | Type | HTTP | Status | Question | Filters | Sources | Min Similarity | Output Guardrail | Pass/Fail | Notes |",
-        "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
+        "| Case ID | Type | Endpoint | HTTP | Status | Question | Filters | Sources | Min Similarity | Output Guardrail | Pass/Fail | Notes |",
+        "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
     ]
 
     for result in results:
@@ -294,7 +312,7 @@ def _write_markdown_report(api_base_url, started_at, results):
         question = str(result["question"]).replace("|", "\\|")
         notes = str(result["notes"]).replace("|", "\\|")
         lines.append(
-            f"| {result['caseId']} | {result['type']} | {http_status_code} | {status} | {question} | {filters} | {sources} | {min_similarity_score} | {output_guardrail} | {pass_fail} | {notes} |"
+            f"| {result['caseId']} | {result['type']} | {result['expected'].get('endpoint', '/rag/query')} | {http_status_code} | {status} | {question} | {filters} | {sources} | {min_similarity_score} | {output_guardrail} | {pass_fail} | {notes} |"
         )
 
     lines.extend(["", "## Answer Snippets", ""])
@@ -312,12 +330,14 @@ def _write_markdown_report(api_base_url, started_at, results):
                 "",
                 f"HTTP Status: {result['response'].get('httpStatusCode', '-')}",
                 "",
+                f"Endpoint: {result['expected'].get('endpoint', '/rag/query')}",
+                "",
                 f"Question: {result['question']}",
                 "",
                 f"Status: {response_body.get('status', '-')}",
                 "",
-            f"Filters: {filters}",
-            "",
+                f"Filters: {filters}",
+                "",
                 f"Sources: {sources}",
                 "",
                 f"Min Similarity Score: {min_similarity_score}",
@@ -355,13 +375,16 @@ def main():
         request_payload = {"question": case_definition.get("question", "")}
         if isinstance(case_definition.get("filters"), dict):
             request_payload["filters"] = case_definition["filters"]
+        if isinstance(case_definition.get("task"), str) and case_definition["task"].strip():
+            request_payload["task"] = case_definition["task"].strip()
 
         request_headers = dict(DEFAULT_REQUEST_HEADERS)
         if isinstance(case_definition.get("headers"), dict):
             request_headers.update(case_definition["headers"])
 
+        endpoint = case_definition.get("endpoint", "/rag/query")
         response = _post_json(
-            f"{api_base_url}/rag/query",
+            f"{api_base_url}{endpoint}",
             request_payload,
             headers=request_headers,
         )

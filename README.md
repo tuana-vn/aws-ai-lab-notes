@@ -1,6 +1,6 @@
 # AWS AI Platform PoC
 
-This repository contains a minimal AWS backend foundation for an AI platform, now extended through Phase 5D with a mini RAG flow that stores document embeddings in DynamoDB, filters eligible chunks by metadata boundaries, validates requested retrieval scope against a simple caller policy, applies AWS-side throttling protections, blocks unsafe input patterns before retrieval, filters weak matches with a similarity threshold, and performs grounded Amazon Bedrock inference only when retrieval is strong enough.
+This repository contains a minimal AWS backend foundation for an AI platform, now extended through Phase 6A with a mini RAG flow that stores document embeddings in DynamoDB, filters eligible chunks by metadata boundaries, validates requested retrieval scope against a simple caller policy, applies AWS-side throttling protections, blocks unsafe input patterns before retrieval, filters weak matches with a similarity threshold, validates output grounding signals, and exposes a controlled read-only agent wrapper around the same retrieval path.
 
 ## Why this foundation exists
 
@@ -472,6 +472,80 @@ Use `test-data/requests/chat-request.json` as a sample request body for `POST /c
 Use `test-data/requests/document-request.json` as a sample request body for `POST /documents`.
 Use `test-data/requests/rag-query-request.json` as a sample request body for `POST /rag/query`.
 Use `test-data/rag-evaluation/questions.json` with `scripts/run_rag_eval.py` for the Phase 3C local RAG evaluation flow.
+
+## Phase 6A - Controlled Read-only Agent Skeleton
+
+Phase 6A adds `POST /agent/run` as the first controlled agent entrypoint. The key idea is that the agent is not magic. It is a thin orchestrator with an explicit allowlist and an explicit plan. In this phase, the allowlist contains exactly one read-only tool: `rag_query`.
+
+The agent does not get arbitrary execution, arbitrary external tools, or permission to mutate state. It validates the request, follows a fixed read-only plan, invokes the shared RAG service, and returns both the answer and the tool execution summary.
+
+This also avoids a behavior fork. The main retrieval, guardrail, policy, and output validation flow now lives in `backend/lambda/common/rag_service.py`, and both `/rag/query` and `/agent/run` call that same shared logic.
+
+Current constraints in Phase 6A:
+
+- `/agent/run` supports only `task: answer_question`
+- `agentMode` is always `read_only`
+- the only allowed tool call is `rag_query`
+- write actions are intentionally out of scope
+
+Successful `/agent/run` response shape:
+
+```json
+{
+  "requestId": "<uuid>",
+  "agentMode": "read_only",
+  "task": "answer_question",
+  "plan": [
+    "Validate request",
+    "Check input guardrail",
+    "Check retrieval policy",
+    "Run rag_query tool",
+    "Validate output",
+    "Return grounded answer"
+  ],
+  "toolCalls": [
+    {
+      "toolName": "rag_query",
+      "status": "completed",
+      "readOnly": true
+    }
+  ],
+  "answer": "<grounded answer>",
+  "sources": [
+    {
+      "documentId": "api-gateway-note",
+      "chunkId": "chunk-0001",
+      "title": "API Gateway Note",
+      "chunkIndex": 0,
+      "similarity": 0.82,
+      "projectId": "learning",
+      "customerId": "internal",
+      "documentType": "technical-note"
+    }
+  ],
+  "status": "completed"
+}
+```
+
+Example request:
+
+```bash
+curl -X POST "$API_BASE_URL/agent/run" \
+  -H "Content-Type: application/json" \
+  -H "X-User-Id: user-learning" \
+  -H "X-Allowed-Project-Ids: learning" \
+  -H "X-Allowed-Customer-Ids: internal" \
+  -d '{
+    "task": "answer_question",
+    "question": "What does API Gateway do?",
+    "filters": {
+      "projectId": "learning",
+      "customerId": "internal"
+    }
+  }'
+```
+
+Future tools could include log search, RCA draft generation, or ticket draft generation, but any write-capable action should sit behind a stronger approval boundary than this learning-phase read-only skeleton.
 
 ## Phase 2 Note
 
