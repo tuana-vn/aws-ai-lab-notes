@@ -76,6 +76,18 @@ Resources:
         - AttributeName: approval_id
           KeyType: HASH
 
+  IncidentReportsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub ai-platform-incident-reports-${EnvironmentName}
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: report_id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: report_id
+          KeyType: HASH
+
   HealthFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -278,6 +290,7 @@ Resources:
       Environment:
         Variables:
           ACTION_APPROVALS_TABLE_NAME: !Ref ActionApprovalsTable
+          INCIDENT_REPORTS_TABLE_NAME: !Ref IncidentReportsTable
       Policies:
         - Version: '2012-10-17'
           Statement:
@@ -286,6 +299,10 @@ Resources:
                 - dynamodb:GetItem
                 - dynamodb:UpdateItem
               Resource: !GetAtt ActionApprovalsTable.Arn
+            - Effect: Allow
+              Action:
+                - dynamodb:PutItem
+              Resource: !GetAtt IncidentReportsTable.Arn
       Events:
         GetApproval:
           Type: Api
@@ -299,6 +316,36 @@ Resources:
             RestApiId: !Ref ApiGateway
             Path: /approvals/{approvalId}/decision
             Method: post
+        PostApprovalExecute:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ApiGateway
+            Path: /approvals/{approvalId}/execute
+            Method: post
+
+  IncidentReportsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ../../backend/lambda
+      Handler: incident_reports.handler.lambda_handler
+      Description: Incident report lookup endpoint for internally executed approved actions.
+      Environment:
+        Variables:
+          INCIDENT_REPORTS_TABLE_NAME: !Ref IncidentReportsTable
+      Policies:
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - dynamodb:GetItem
+              Resource: !GetAtt IncidentReportsTable.Arn
+      Events:
+        GetIncidentReport:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ApiGateway
+            Path: /incident-reports/{reportId}
+            Method: get
 
 Outputs:
   ApiBaseUrl:
@@ -324,3 +371,7 @@ Outputs:
   ActionApprovalsTableName:
     Description: DynamoDB table storing approval workflow records.
     Value: !Ref ActionApprovalsTable
+
+  IncidentReportsTableName:
+    Description: DynamoDB table storing internally executed incident report records.
+    Value: !Ref IncidentReportsTable

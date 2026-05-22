@@ -68,3 +68,23 @@ class ApprovalRepository:
             ReturnValues="ALL_NEW",
         )
         return _deserialize_value(response.get("Attributes", {}))
+
+    def mark_executed(self, approval_id: str, report_id: str) -> dict:
+        response = self._table.update_item(
+            Key={"approval_id": approval_id},
+            UpdateExpression=(
+                "SET execution_status = :execution_status, executed_at = :executed_at, execution_result = :execution_result"
+            ),
+            ExpressionAttributeValues=_serialize_value(
+                {
+                    ":execution_status": "executed",
+                    ":executed_at": datetime.now(timezone.utc).isoformat(),
+                    ":execution_result": {
+                        "reportId": report_id,
+                        "action": "create_incident_report",
+                    },
+                }
+            ),
+            ReturnValues="ALL_NEW",
+        )
+        return _deserialize_value(response.get("Attributes", {}))

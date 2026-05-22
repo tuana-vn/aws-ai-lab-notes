@@ -173,5 +173,20 @@
     "expectedInitialStatus": "approval_required",
     "expectedApprovalStatus": "approved",
     "expectedExecutionStatus": "approved_not_executed"
+  },
+  {
+    "caseId": "Q016",
+    "type": "approval_execute_internal_report",
+    "endpoint": "/agent/run",
+    "task": "propose_incident_report",
+    "minutes": 120,
+    "approvalDecision": "approved",
+    "decidedBy": "eval-user",
+    "comment": "Approved by evaluation workflow before internal report execution.",
+    "executedBy": "eval-user",
+    "expectedApprovalStatus": "approved",
+    "expectedExecutionStatusAfterDecision": "approved_not_executed",
+    "expectedExecutionStatusAfterExecute": "executed",
+    "expectedReportStatus": "created"
   }
 ]

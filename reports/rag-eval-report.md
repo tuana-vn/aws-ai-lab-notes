@@ -1,9 +1,9 @@
 # RAG Evaluation Report
 
 - API base URL: https://dj4qxxa454.execute-api.ap-southeast-1.amazonaws.com/v1
-- timestamp: 2026-05-22T10:27:36.679936+00:00
-- total cases: 15
-- passed cases: 15
+- timestamp: 2026-05-22T10:42:27.915463+00:00
+- total cases: 16
+- passed cases: 16
 - failed cases: 0
 
 | Case ID | Type | Endpoint | HTTP | Status | Question | Filters | Sources | Min Similarity | Output Guardrail | Pass/Fail | Notes |
@@ -23,6 +23,7 @@
 | Q013 | agent_investigate_recent_blocks | /agent/run | 200 | completed | None | - | - | - | - | PASS | OK |
 | Q014 | agent_propose_incident_report | /agent/run | 200 | approval_required | None | - | - | - | - | PASS | OK |
 | Q015 | approval_workflow | /agent/run | 200 | approval_required | None | - | - | - | - | PASS | OK |
+| Q016 | approval_execute_internal_report | /agent/run | 200 | approval_required | None | - | - | - | - | PASS | OK |
 
 ## Answer Snippets
 
@@ -44,7 +45,7 @@ Min Similarity Score: 0.25
 
 Output Guardrail: action=allow, reason=valid_grounded_answer, warnings=-
 
-Answer: Amazon API Gateway helps developers create, publish, maintain, monitor, and secure APIs. It handles routing, throttling, authorization, request validation, and integrates with AWS services. It also protects backend services using authori...
+Answer: API Gateway helps developers create, publish, maintain, monitor, and secure APIs. It can handle routing, throttling, authorization, request validation, and integration with AWS services. It also helps protect backend services by using au...
 
 ### Q002
 
@@ -64,7 +65,7 @@ Min Similarity Score: 0.25
 
 Output Guardrail: action=allow, reason=valid_grounded_answer, warnings=-
 
-Answer: API Gateway can limit excessive traffic through throttling. Throttling allows you to control the number of requests that can be made to your API within a specified time period. [Source: documentId=api-gateway-note, chunkId=chunk-0001]
+Answer: API Gateway can limit excessive traffic through throttling. Throttling helps protect backend services by controlling the number of requests that can be made to an API within a certain time period. [Source: documentId=api-gateway-note, ch...
 
 ### Q003
 
@@ -204,7 +205,7 @@ Min Similarity Score: 0.25
 
 Output Guardrail: action=allow, reason=valid_grounded_answer, warnings=-
 
-Answer: Amazon API Gateway is a managed service that assists developers in creating, publishing, maintaining, monitoring, and securing APIs. It acts as a front door for applications to access backend services like Lambda functions or container-b...
+Answer: Amazon API Gateway is a managed service that assists developers in creating, publishing, maintaining, monitoring, and securing APIs. It serves as a front door for applications to access backend services like Lambda functions or container...
 
 ### Q010
 
@@ -224,7 +225,7 @@ Min Similarity Score: -
 
 Output Guardrail: action=allow, reason=valid_grounded_answer, warnings=-
 
-Answer: API Gateway helps developers create, publish, maintain, monitor, and secure APIs. It can handle routing, throttling, authorization, request validation, and integration with AWS services. It also helps protect backend services by using au...
+Answer: API Gateway helps developers create, publish, maintain, monitor, and secure APIs. It can handle routing, throttling, authorization, request validation, and integration with AWS services. It also protects backend services by using authori...
 
 ### Q011
 
@@ -307,6 +308,26 @@ Output Guardrail: -
 Answer: I prepared an incident report proposal. It has not been executed and requires human approval.
 
 ### Q015
+
+HTTP Status: 200
+
+Endpoint: /agent/run
+
+Question: None
+
+Status: approval_required
+
+Filters: -
+
+Sources: -
+
+Min Similarity Score: -
+
+Output Guardrail: -
+
+Answer: I prepared an incident report proposal. It has not been executed and requires human approval.
+
+### Q016
 
 HTTP Status: 200
 

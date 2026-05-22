@@ -371,6 +371,66 @@ def _evaluate_case(case_definition, response):
             and decision_result.get("status") == expected_approval_status
             and decision_result.get("executionStatus") == expected_execution_status
         )
+    elif case_type == "approval_execute_internal_report":
+        expected_approval_status = case_definition.get("expectedApprovalStatus")
+        expected_execution_status_after_decision = case_definition.get("expectedExecutionStatusAfterDecision")
+        expected_execution_status_after_execute = case_definition.get("expectedExecutionStatusAfterExecute")
+        expected_report_status = case_definition.get("expectedReportStatus")
+        decision_result = response_body.get("decisionResult", {})
+        execute_result = response_body.get("executeResult", {})
+        report_record = response_body.get("reportRecord", {})
+        approval_id = response_body.get("approvalId")
+        report_id = execute_result.get("reportId")
+        approval_decision_http_status_code = response.get("approvalDecisionHttpStatusCode")
+        approval_execute_http_status_code = response.get("approvalExecuteHttpStatusCode")
+        report_get_http_status_code = response.get("reportGetHttpStatusCode")
+
+        if not approval_id:
+            notes.append("expected approvalId to exist")
+        if approval_decision_http_status_code != 200:
+            notes.append(f"expected approval decision HTTP 200 but got {approval_decision_http_status_code}")
+        if approval_execute_http_status_code != 200:
+            notes.append(f"expected approval execute HTTP 200 but got {approval_execute_http_status_code}")
+        if report_get_http_status_code != 200:
+            notes.append(f"expected incident report GET HTTP 200 but got {report_get_http_status_code}")
+        if decision_result.get("status") != expected_approval_status:
+            notes.append(
+                f"expected approval decision status '{expected_approval_status}' but got '{decision_result.get('status')}'"
+            )
+        if decision_result.get("executionStatus") != expected_execution_status_after_decision:
+            notes.append(
+                "expected execution status after decision "
+                f"'{expected_execution_status_after_decision}' but got '{decision_result.get('executionStatus')}'"
+            )
+        if execute_result.get("status") != "executed":
+            notes.append(f"expected execute response status 'executed' but got '{execute_result.get('status')}'")
+        if execute_result.get("executionStatus") != expected_execution_status_after_execute:
+            notes.append(
+                "expected execution status after execute "
+                f"'{expected_execution_status_after_execute}' but got '{execute_result.get('executionStatus')}'"
+            )
+        if not report_id:
+            notes.append("expected reportId to exist")
+        if report_record.get("status") != expected_report_status:
+            notes.append(f"expected report status '{expected_report_status}' but got '{report_record.get('status')}'")
+        if report_record.get("approval_id") != approval_id:
+            notes.append(
+                f"expected report approval_id '{approval_id}' but got '{report_record.get('approval_id')}'"
+            )
+
+        passed = (
+            bool(approval_id)
+            and approval_decision_http_status_code == 200
+            and approval_execute_http_status_code == 200
+            and report_get_http_status_code == 200
+            and decision_result.get("status") == expected_approval_status
+            and decision_result.get("executionStatus") == expected_execution_status_after_decision
+            and execute_result.get("status") == "executed"
+            and execute_result.get("executionStatus") == expected_execution_status_after_execute
+            and bool(report_id)
+            and report_record.get("status") == expected_report_status
+            and report_record.get("approval_id") == approval_id
+        )
     elif case_type in {"out_of_source", "metadata_boundary"}:
         normalized_answer = _normalize_text(answer)
         no_answer_detected = NO_ANSWER_TEXT.casefold() in normalized_answer
@@ -511,6 +571,12 @@ def _build_request_payload(case_definition, results_by_case_id):
             "minutes": case_definition.get("minutes", 120),
         }
 
+    if case_definition.get("type") == "approval_execute_internal_report":
+        return {
+            "task": task,
+            "minutes": case_definition.get("minutes", 120),
+        }
+
     payload = {"question": case_definition.get("question", "")}
     if isinstance(case_definition.get("filters"), dict):
         payload["filters"] = case_definition["filters"]
@@ -564,6 +630,85 @@ def _run_approval_workflow_case(api_base_url, case_definition, request_headers):
         },
         "approvalGetHttpStatusCode": approval_get_response.get("httpStatusCode"),
         "approvalDecisionHttpStatusCode": approval_decision_response.get("httpStatusCode"),
+    }
+
+
+def _run_approval_execute_internal_report_case(api_base_url, case_definition, request_headers):
+    initial_payload = _build_request_payload(case_definition, {})
+    initial_response = _post_json(
+        f"{api_base_url}{case_definition.get('endpoint', '/agent/run')}",
+        initial_payload,
+        headers=request_headers,
+    )
+    initial_body = initial_response.get("body", {})
+    approval_id = initial_body.get("approvalId")
+
+    if not isinstance(approval_id, str) or not approval_id:
+        return {
+            "httpStatusCode": initial_response.get("httpStatusCode"),
+            "body": {
+                **initial_body,
+                "decisionResult": {},
+                "executeResult": {},
+                "reportRecord": {},
+            },
+            "approvalDecisionHttpStatusCode": None,
+            "approvalExecuteHttpStatusCode": None,
+            "reportGetHttpStatusCode": None,
+        }
+
+    approval_decision_payload = {
+        "decision": case_definition.get("approvalDecision"),
+        "decidedBy": case_definition.get("decidedBy"),
+    }
+    if case_definition.get("comment") is not None:
+        approval_decision_payload["comment"] = case_definition.get("comment")
+
+    approval_decision_response = _post_json(
+        f"{api_base_url}/approvals/{approval_id}/decision",
+        approval_decision_payload,
+        headers=request_headers,
+    )
+    execute_response = _post_json(
+        f"{api_base_url}/approvals/{approval_id}/execute",
+        {
+            "executedBy": case_definition.get("executedBy"),
+        },
+        headers=request_headers,
+    )
+    execute_body = execute_response.get("body", {})
+    report_id = execute_body.get("reportId")
+
+    if not isinstance(report_id, str) or not report_id:
+        return {
+            "httpStatusCode": initial_response.get("httpStatusCode"),
+            "body": {
+                **initial_body,
+                "decisionResult": approval_decision_response.get("body", {}),
+                "executeResult": execute_body,
+                "reportRecord": {},
+            },
+            "approvalDecisionHttpStatusCode": approval_decision_response.get("httpStatusCode"),
+            "approvalExecuteHttpStatusCode": execute_response.get("httpStatusCode"),
+            "reportGetHttpStatusCode": None,
+        }
+
+    report_get_response = _get_json(
+        f"{api_base_url}/incident-reports/{report_id}",
+        headers=request_headers,
+    )
+
+    return {
+        "httpStatusCode": initial_response.get("httpStatusCode"),
+        "body": {
+            **initial_body,
+            "decisionResult": approval_decision_response.get("body", {}),
+            "executeResult": execute_body,
+            "reportRecord": report_get_response.get("body", {}),
+        },
+        "approvalDecisionHttpStatusCode": approval_decision_response.get("httpStatusCode"),
+        "approvalExecuteHttpStatusCode": execute_response.get("httpStatusCode"),
+        "reportGetHttpStatusCode": report_get_response.get("httpStatusCode"),
     }
 
 
@@ -664,6 +809,8 @@ def main():
 
         if case_definition.get("type") == "approval_workflow":
             response = _run_approval_workflow_case(api_base_url, case_definition, request_headers)
+        elif case_definition.get("type") == "approval_execute_internal_report":
+            response = _run_approval_execute_internal_report_case(api_base_url, case_definition, request_headers)
         else:
             request_payload = _build_request_payload(case_definition, results_by_case_id)
             endpoint = case_definition.get("endpoint", "/rag/query")

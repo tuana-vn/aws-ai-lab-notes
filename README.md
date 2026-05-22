@@ -1,6 +1,6 @@
 # AWS AI Platform PoC
 
-This repository contains a minimal AWS backend foundation for an AI platform, now extended through Phase 6F with a mini RAG flow that stores document embeddings in DynamoDB, filters eligible chunks by metadata boundaries, validates requested retrieval scope against a simple caller policy, applies AWS-side throttling protections, blocks unsafe input patterns before retrieval, filters weak matches with a similarity threshold, validates output grounding signals, and exposes a controlled agent wrapper around the same retrieval path with explicit human approval boundaries for proposed write actions.
+This repository contains a minimal AWS backend foundation for an AI platform, now extended through Phase 6G with a mini RAG flow that stores document embeddings in DynamoDB, filters eligible chunks by metadata boundaries, validates requested retrieval scope against a simple caller policy, applies AWS-side throttling protections, blocks unsafe input patterns before retrieval, filters weak matches with a similarity threshold, validates output grounding signals, and exposes a controlled agent wrapper around the same retrieval path with explicit human approval boundaries for proposed write actions and a tightly scoped internal executor.
 
 ## Why this foundation exists
 
@@ -36,6 +36,7 @@ aws-ai-platform-poc/
         chunking.py
         document_repository.py
         embedding_client.py
+        incident_report_repository.py
         investigation.py
         log_search.py
         response.py
@@ -53,6 +54,8 @@ aws-ai-platform-poc/
       documents/
         handler.py
       health/
+        handler.py
+      incident_reports/
         handler.py
       echo/
         handler.py
@@ -637,3 +640,13 @@ The `propose_incident_report` task now creates an approval record in DynamoDB, r
 This is the skeleton for human-in-the-loop control. Approval does not create tickets, send email, or trigger any external workflow yet. Those execution steps remain explicitly out of scope.
 
 Production systems could later connect approved actions to ticketing, email, or workflow execution with a stronger audit trail, stronger identity, and tighter approval controls.
+
+## Phase 6G - Approved Action Executor Skeleton
+
+Phase 6F recorded human approval or rejection only. Phase 6G adds the next bounded step: controlled internal execution after approval.
+
+Execution is restricted to the allowlisted action type `create_incident_report`. The executor does not send email, create Jira tickets, call external systems, or run shell commands. It creates only an internal incident report record in DynamoDB after the approval record is already in `approved` status and still marked `approved_not_executed`.
+
+The executor writes a new record with the proposal title, summary, severity, recommended next steps, source request ID, and executor identity, then marks the approval record as `executed` with the internal report ID as execution result metadata.
+
+This is still a learning PoC. Production execution would need stronger identity, audit trails, idempotency protection, retry strategy, failure handling, and integration-specific controls before any external system write should be allowed.
