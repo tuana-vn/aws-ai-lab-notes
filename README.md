@@ -54,6 +54,8 @@ aws-ai-platform-poc/
       template.yaml
   scripts/
     run_rag_eval.py
+    view_trace.py
+    view_eval_trace.py
   test-data/
     requests/
       chat-request.json
@@ -410,6 +412,31 @@ Phase 5B adds a simple output validation step for `/rag/query`. After Bedrock re
 This keeps the behavior easy to observe during evaluation. The response and trace now include output guardrail metadata so you can see when an answer looks grounded versus when it should be reviewed more carefully.
 
 Production systems can enforce stricter validation, stronger citation requirements, Bedrock Guardrails, model-based output review, or human approval workflows for sensitive actions.
+
+## Phase 5C - Observability Cleanup and Trace Viewer
+
+Evaluation shows pass or fail for each local test case, but it does not by itself explain the full execution path inside the backend. DynamoDB trace records show the request metadata, retrieval path, guardrail decisions, and answer preview. CloudWatch logs then provide the runtime log stream around the same request.
+
+Phase 5C adds two small local helper scripts:
+
+- `scripts/view_trace.py` fetches one trace record directly from DynamoDB by `requestId`
+- `scripts/view_eval_trace.py` connects an evaluation `caseId` to its stored trace when a `requestId` exists in the evaluation result
+
+Example commands:
+
+```bash
+python3 scripts/view_trace.py --request-id <requestId>
+python3 scripts/view_eval_trace.py --case-id Q009
+python3 scripts/view_eval_trace.py --case-id Q007
+```
+
+Use `view_trace.py` when you already know a `requestId` from an API response or evaluation output. Use `view_eval_trace.py` when you want to start from an evaluation case and inspect the corresponding trace record.
+
+For learning scenarios:
+
+- `Q007` and `Q008` should show input guardrail blocked behavior
+- `Q009` should show output guardrail observation behavior
+- `Q006` policy-denied may not have a `requestId`, depending on implementation, so the helper may report that no trace lookup is available
 
 ## Local test payload
 
