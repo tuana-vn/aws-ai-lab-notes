@@ -1,6 +1,6 @@
 # AWS AI Platform PoC
 
-This repository contains a minimal AWS backend foundation for an AI platform, now extended through Phase 6A with a mini RAG flow that stores document embeddings in DynamoDB, filters eligible chunks by metadata boundaries, validates requested retrieval scope against a simple caller policy, applies AWS-side throttling protections, blocks unsafe input patterns before retrieval, filters weak matches with a similarity threshold, validates output grounding signals, and exposes a controlled read-only agent wrapper around the same retrieval path.
+This repository contains a minimal AWS backend foundation for an AI platform, now extended through Phase 6B with a mini RAG flow that stores document embeddings in DynamoDB, filters eligible chunks by metadata boundaries, validates requested retrieval scope against a simple caller policy, applies AWS-side throttling protections, blocks unsafe input patterns before retrieval, filters weak matches with a similarity threshold, validates output grounding signals, and exposes a controlled read-only agent wrapper around the same retrieval path.
 
 ## Why this foundation exists
 
@@ -546,6 +546,33 @@ curl -X POST "$API_BASE_URL/agent/run" \
 ```
 
 Future tools could include log search, RCA draft generation, or ticket draft generation, but any write-capable action should sit behind a stronger approval boundary than this learning-phase read-only skeleton.
+
+## Phase 6B - Second Read-only Tool: trace_lookup
+
+Phase 6B extends the read-only agent with a second explicit tool: `trace_lookup`. The agent now has two read-only tools:
+
+- `rag_query`
+- `trace_lookup`
+
+`trace_lookup` lets the agent inspect platform behavior by `requestId` using the existing trace table. This is useful when you want the agent to explain why a previous request was blocked, why it returned `no_source`, or whether it completed successfully.
+
+The tool stays intentionally small and read-only. It uses DynamoDB `GetItem` against the existing trace table and returns a compact inspection result plus a deterministic natural-language summary. It does not mutate state, call Bedrock, or introduce a new AWS service.
+
+The `/agent/run` endpoint now supports:
+
+- `task: answer_question`
+- `task: inspect_trace`
+
+Example trace inspection request:
+
+```json
+{
+  "task": "inspect_trace",
+  "requestId": "paste-request-id-here"
+}
+```
+
+This keeps the agent useful for platform introspection without turning it into a write-capable automation system. Future tools can include log search, RCA draft generation, and ticket draft creation, but any write action should still require explicit human approval.
 
 ## Phase 2 Note
 

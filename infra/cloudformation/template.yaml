@@ -231,6 +231,7 @@ Resources:
               Resource: !GetAtt DocumentChunksTable.Arn
             - Effect: Allow
               Action:
+                - dynamodb:GetItem
                 - dynamodb:PutItem
               Resource: !GetAtt AiPlatformRequestTrace.Arn
             - Effect: Allow

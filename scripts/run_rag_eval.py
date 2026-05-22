@@ -182,6 +182,31 @@ def _evaluate_case(case_definition, response):
         )
         if case_type == "agent_answer_question":
             passed = passed and agent_mode == "read_only" and task == case_definition.get("task") and has_rag_tool_call
+    elif case_type == "agent_inspect_trace":
+        expected_status = case_definition.get("expectedStatus")
+        expected_tool_name = case_definition.get("expectedToolName")
+        expected_trace_status = case_definition.get("expectedTraceStatus")
+        tool_calls = response_body.get("toolCalls", [])
+        trace = response_body.get("trace", {})
+
+        has_expected_tool = any(
+            isinstance(tool_call, dict) and tool_call.get("toolName") == expected_tool_name
+            for tool_call in tool_calls
+        )
+        if response_status != expected_status:
+            notes.append(f"expected status '{expected_status}' but got '{response_status}'")
+        if not has_expected_tool:
+            notes.append(f"expected tool '{expected_tool_name}' not found")
+        if trace.get("status") != expected_trace_status:
+            notes.append(
+                f"expected trace.status '{expected_trace_status}' but got '{trace.get('status')}'"
+            )
+
+        passed = (
+            response_status == expected_status
+            and has_expected_tool
+            and trace.get("status") == expected_trace_status
+        )
     elif case_type in {"out_of_source", "metadata_boundary"}:
         normalized_answer = _normalize_text(answer)
         no_answer_detected = NO_ANSWER_TEXT.casefold() in normalized_answer
@@ -282,6 +307,29 @@ def _write_json_report(results_payload):
         json.dump(results_payload, file_handle, indent=2)
 
 
+def _get_case_request_id(results_by_case_id, case_id):
+    result = results_by_case_id.get(case_id, {})
+    response_body = result.get("response", {}).get("body", {})
+    request_id = response_body.get("requestId")
+    return request_id if isinstance(request_id, str) else ""
+
+
+def _build_request_payload(case_definition, results_by_case_id):
+    task = case_definition.get("task")
+    if case_definition.get("type") == "agent_inspect_trace":
+        return {
+            "task": task,
+            "requestId": _get_case_request_id(results_by_case_id, case_definition.get("targetCaseId")),
+        }
+
+    payload = {"question": case_definition.get("question", "")}
+    if isinstance(case_definition.get("filters"), dict):
+        payload["filters"] = case_definition["filters"]
+    if isinstance(task, str) and task.strip():
+        payload["task"] = task.strip()
+    return payload
+
+
 def _write_markdown_report(api_base_url, started_at, results):
     total_cases = len(results)
     passed_cases = sum(1 for result in results if result["pass"])
@@ -371,12 +419,9 @@ def main():
         )
 
     results = []
+    results_by_case_id = {}
     for case_definition in questions:
-        request_payload = {"question": case_definition.get("question", "")}
-        if isinstance(case_definition.get("filters"), dict):
-            request_payload["filters"] = case_definition["filters"]
-        if isinstance(case_definition.get("task"), str) and case_definition["task"].strip():
-            request_payload["task"] = case_definition["task"].strip()
+        request_payload = _build_request_payload(case_definition, results_by_case_id)
 
         request_headers = dict(DEFAULT_REQUEST_HEADERS)
         if isinstance(case_definition.get("headers"), dict):
@@ -388,7 +433,9 @@ def main():
             request_payload,
             headers=request_headers,
         )
-        results.append(_evaluate_case(case_definition, response))
+        evaluation_result = _evaluate_case(case_definition, response)
+        results.append(evaluation_result)
+        results_by_case_id[evaluation_result["caseId"]] = evaluation_result
 
     results_payload = {
         "apiBaseUrl": api_base_url,

@@ -120,5 +120,15 @@
     "expectedStatus": "completed",
     "expectedDocumentId": "api-gateway-note",
     "expectedAnswerKeywords": ["create", "publish", "secure", "APIs"]
+  },
+  {
+    "caseId": "Q011",
+    "type": "agent_inspect_trace",
+    "endpoint": "/agent/run",
+    "task": "inspect_trace",
+    "targetCaseId": "Q007",
+    "expectedStatus": "completed",
+    "expectedToolName": "trace_lookup",
+    "expectedTraceStatus": "blocked"
   }
 ]
