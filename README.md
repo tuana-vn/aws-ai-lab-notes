@@ -52,13 +52,21 @@ aws-ai-platform-poc/
   infra/
     cloudformation/
       template.yaml
+  scripts/
+    run_rag_eval.py
   test-data/
     requests/
       chat-request.json
       document-request.json
       echo-request.json
       rag-query-request.json
+    rag-evaluation/
+      questions.json
+      documents/
+        api-gateway-note.json
 ```
+
+Phase 3C adds a local evaluation workflow that re-indexes a known document, runs a small set of grounded RAG questions against the deployed API, and writes both raw JSON results and a readable Markdown report under a local `reports/` folder.
 
 ## Endpoints
 
@@ -279,12 +287,31 @@ curl -X POST "$API_BASE_URL/rag/query" \
 
 `/rag/query` now uses embedding retrieval. It also calls Bedrock for answer generation, so both embedding generation and final answer generation may incur cost.
 
+## Phase 3C - RAG Evaluation
+
+RAG evaluation is needed because a grounded answer pipeline can fail in more than one way: retrieval can miss the right chunk, the model can answer without grounding to the expected source, or the system can fail to refuse questions that are outside the indexed documents. A small local evaluation loop makes those failure modes visible with repeatable test cases.
+
+The Phase 3C script uploads a known document to `/documents`, runs evaluation questions against `/rag/query`, and writes two local artifacts:
+
+- `reports/rag-eval-results.json` for raw machine-readable results
+- `reports/rag-eval-report.md` for a quick human review
+
+Run it from the `aws-ai-platform-poc` folder:
+
+```bash
+export API_BASE_URL="https://xxxxx.execute-api.ap-southeast-1.amazonaws.com/v1"
+python3 scripts/run_rag_eval.py
+```
+
+Read the Markdown report first to see total pass/fail counts, per-case notes, source document IDs, and short answer snippets. Use the JSON file when you want the full request expectations and raw API responses for each evaluation case.
+
 ## Local test payload
 
 Use `test-data/requests/echo-request.json` as a sample request body for `POST /echo`.
 Use `test-data/requests/chat-request.json` as a sample request body for `POST /chat`.
 Use `test-data/requests/document-request.json` as a sample request body for `POST /documents`.
 Use `test-data/requests/rag-query-request.json` as a sample request body for `POST /rag/query`.
+Use `test-data/rag-evaluation/questions.json` with `scripts/run_rag_eval.py` for the Phase 3C local RAG evaluation flow.
 
 ## Phase 2 Note
 

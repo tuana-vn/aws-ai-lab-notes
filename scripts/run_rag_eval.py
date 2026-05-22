@@ -1,0 +1,250 @@
+import json
+import os
+from datetime import datetime, timezone
+from pathlib import Path
+from urllib import error, request
+
+
+DOCUMENT_PATH = Path("test-data/rag-evaluation/documents/api-gateway-note.json")
+QUESTIONS_PATH = Path("test-data/rag-evaluation/questions.json")
+REPORTS_DIR = Path("reports")
+RAW_RESULTS_PATH = REPORTS_DIR / "rag-eval-results.json"
+MARKDOWN_REPORT_PATH = REPORTS_DIR / "rag-eval-report.md"
+NO_ANSWER_TEXT = "I do not know based on the available documents"
+
+
+def _require_api_base_url():
+    api_base_url = os.environ.get("API_BASE_URL", "").strip()
+    if not api_base_url:
+        raise SystemExit("API_BASE_URL environment variable is required.")
+
+    return api_base_url.rstrip("/")
+
+
+def _load_json(path):
+    with path.open("r", encoding="utf-8") as file_handle:
+        return json.load(file_handle)
+
+
+def _post_json(url, payload):
+    body = json.dumps(payload).encode("utf-8")
+    http_request = request.Request(
+        url,
+        data=body,
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+
+    try:
+        with request.urlopen(http_request) as http_response:
+            response_text = http_response.read().decode("utf-8")
+            response_body = json.loads(response_text) if response_text else {}
+            return {
+                "httpStatusCode": http_response.getcode(),
+                "body": response_body,
+            }
+    except error.HTTPError as exc:
+        response_text = exc.read().decode("utf-8")
+        try:
+            response_body = json.loads(response_text) if response_text else {}
+        except json.JSONDecodeError:
+            response_body = {"rawBody": response_text}
+
+        return {
+            "httpStatusCode": exc.code,
+            "body": response_body,
+        }
+
+
+def _normalize_text(value):
+    if not isinstance(value, str):
+        return ""
+
+    return value.casefold()
+
+
+def _extract_source_document_ids(response_body):
+    source_document_ids = []
+    for source in response_body.get("sources", []):
+        if isinstance(source, dict):
+            document_id = source.get("documentId")
+            if isinstance(document_id, str):
+                source_document_ids.append(document_id)
+
+    return source_document_ids
+
+
+def _answer_contains_any_keyword(answer, keywords):
+    normalized_answer = _normalize_text(answer)
+    for keyword in keywords:
+        if _normalize_text(keyword) in normalized_answer:
+            return True
+
+    return False
+
+
+def _evaluate_case(case_definition, response):
+    response_body = response.get("body", {})
+    response_status = response_body.get("status")
+    answer = response_body.get("answer", "")
+    source_document_ids = _extract_source_document_ids(response_body)
+    notes = []
+    case_type = case_definition.get("type")
+
+    if case_type in {"in_source", "semantic"}:
+        expected_status = case_definition.get("expectedStatus")
+        expected_document_id = case_definition.get("expectedDocumentId")
+        expected_keywords = case_definition.get("expectedAnswerKeywords", [])
+
+        status_matches = response_status == expected_status
+        has_expected_source = expected_document_id in source_document_ids
+        has_expected_keyword = _answer_contains_any_keyword(answer, expected_keywords)
+
+        if not status_matches:
+            notes.append(f"expected status '{expected_status}' but got '{response_status}'")
+        if not has_expected_source:
+            notes.append(f"expected source '{expected_document_id}' not found")
+        if not has_expected_keyword:
+            notes.append("answer did not contain any expected keyword")
+
+        passed = status_matches and has_expected_source and has_expected_keyword
+    elif case_type == "out_of_source":
+        normalized_answer = _normalize_text(answer)
+        no_answer_detected = NO_ANSWER_TEXT.casefold() in normalized_answer or response_status == "no_source"
+        if not no_answer_detected:
+            notes.append("response did not refuse the out-of-source question")
+
+        passed = no_answer_detected
+    else:
+        notes.append(f"unsupported case type '{case_type}'")
+        passed = False
+
+    if response.get("httpStatusCode", 0) >= 400:
+        notes.append(f"HTTP {response['httpStatusCode']}")
+        passed = False
+
+    return {
+        "caseId": case_definition.get("caseId"),
+        "type": case_type,
+        "question": case_definition.get("question"),
+        "expected": case_definition,
+        "response": response,
+        "pass": passed,
+        "notes": "; ".join(notes) if notes else "OK",
+    }
+
+
+def _format_sources_for_markdown(response_body):
+    source_document_ids = _extract_source_document_ids(response_body)
+    if not source_document_ids:
+        return "-"
+
+    return ", ".join(source_document_ids)
+
+
+def _answer_snippet(answer, limit=240):
+    compact_answer = " ".join(str(answer).split())
+    if len(compact_answer) <= limit:
+        return compact_answer
+
+    return compact_answer[: limit - 3] + "..."
+
+
+def _write_json_report(results_payload):
+    REPORTS_DIR.mkdir(parents=True, exist_ok=True)
+    with RAW_RESULTS_PATH.open("w", encoding="utf-8") as file_handle:
+        json.dump(results_payload, file_handle, indent=2)
+
+
+def _write_markdown_report(api_base_url, started_at, results):
+    total_cases = len(results)
+    passed_cases = sum(1 for result in results if result["pass"])
+    failed_cases = total_cases - passed_cases
+
+    lines = [
+        "# RAG Evaluation Report",
+        "",
+        f"- API base URL: {api_base_url}",
+        f"- timestamp: {started_at}",
+        f"- total cases: {total_cases}",
+        f"- passed cases: {passed_cases}",
+        f"- failed cases: {failed_cases}",
+        "",
+        "| Case ID | Type | Question | Status | Sources | Pass/Fail | Notes |",
+        "| --- | --- | --- | --- | --- | --- | --- |",
+    ]
+
+    for result in results:
+        response_body = result["response"].get("body", {})
+        status = response_body.get("status", "-")
+        sources = _format_sources_for_markdown(response_body)
+        pass_fail = "PASS" if result["pass"] else "FAIL"
+        question = str(result["question"]).replace("|", "\\|")
+        notes = str(result["notes"]).replace("|", "\\|")
+        lines.append(
+            f"| {result['caseId']} | {result['type']} | {question} | {status} | {sources} | {pass_fail} | {notes} |"
+        )
+
+    lines.extend(["", "## Answer Snippets", ""])
+
+    for result in results:
+        response_body = result["response"].get("body", {})
+        answer = response_body.get("answer", "")
+        lines.extend(
+            [
+                f"### {result['caseId']}",
+                "",
+                f"Question: {result['question']}",
+                "",
+                f"Answer: {_answer_snippet(answer) or '-'}",
+                "",
+            ]
+        )
+
+    REPORTS_DIR.mkdir(parents=True, exist_ok=True)
+    with MARKDOWN_REPORT_PATH.open("w", encoding="utf-8") as file_handle:
+        file_handle.write("\n".join(lines))
+
+
+def main():
+    api_base_url = _require_api_base_url()
+    started_at = datetime.now(timezone.utc).isoformat()
+
+    script_directory = Path(__file__).resolve().parent
+    repository_root = script_directory.parent
+    document = _load_json(repository_root / DOCUMENT_PATH)
+    questions = _load_json(repository_root / QUESTIONS_PATH)
+
+    document_response = _post_json(f"{api_base_url}/documents", document)
+    if document_response["httpStatusCode"] >= 400:
+        raise SystemExit(
+            "Document indexing failed: "
+            + json.dumps(document_response, indent=2)
+        )
+
+    results = []
+    for case_definition in questions:
+        response = _post_json(
+            f"{api_base_url}/rag/query",
+            {"question": case_definition.get("question", "")},
+        )
+        results.append(_evaluate_case(case_definition, response))
+
+    results_payload = {
+        "apiBaseUrl": api_base_url,
+        "timestamp": started_at,
+        "documentResponse": document_response,
+        "results": results,
+    }
+    _write_json_report(results_payload)
+    _write_markdown_report(api_base_url, started_at, results)
+
+    total_cases = len(results)
+    passed_cases = sum(1 for result in results if result["pass"])
+    print(f"RAG evaluation complete: {passed_cases}/{total_cases} cases passed.")
+    print(f"JSON results: {RAW_RESULTS_PATH}")
+    print(f"Markdown report: {MARKDOWN_REPORT_PATH}")
+
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,33 @@
+[
+  {
+    "caseId": "Q001",
+    "type": "in_source",
+    "question": "What does API Gateway do?",
+    "expectedStatus": "completed",
+    "expectedDocumentId": "api-gateway-note",
+    "expectedAnswerKeywords": ["create", "publish", "secure", "APIs"]
+  },
+  {
+    "caseId": "Q002",
+    "type": "semantic",
+    "question": "How can API Gateway limit excessive traffic?",
+    "expectedStatus": "completed",
+    "expectedDocumentId": "api-gateway-note",
+    "expectedAnswerKeywords": ["throttling"]
+  },
+  {
+    "caseId": "Q003",
+    "type": "semantic",
+    "question": "How does API Gateway protect backend services?",
+    "expectedStatus": "completed",
+    "expectedDocumentId": "api-gateway-note",
+    "expectedAnswerKeywords": ["authorization", "request validation"]
+  },
+  {
+    "caseId": "Q004",
+    "type": "out_of_source",
+    "question": "What is the capital city of France?",
+    "expectedAnswerMode": "no_answer",
+    "expectedAnswerKeywords": ["I do not know based on the available documents"]
+  }
+]
