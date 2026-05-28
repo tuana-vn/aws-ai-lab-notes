@@ -332,6 +332,8 @@ Resources:
             RestApiId: !Ref ApiGateway
             Path: /agent/run
             Method: post
+            Auth:
+              Authorizer: CognitoRagQueryAuthorizer
 
   ApprovalsFunction:
     Type: AWS::Serverless::Function
@@ -362,18 +364,24 @@ Resources:
             RestApiId: !Ref ApiGateway
             Path: /approvals/{approvalId}
             Method: get
+            Auth:
+              Authorizer: CognitoRagQueryAuthorizer
         PostApprovalDecision:
           Type: Api
           Properties:
             RestApiId: !Ref ApiGateway
             Path: /approvals/{approvalId}/decision
             Method: post
+            Auth:
+              Authorizer: CognitoRagQueryAuthorizer
         PostApprovalExecute:
           Type: Api
           Properties:
             RestApiId: !Ref ApiGateway
             Path: /approvals/{approvalId}/execute
             Method: post
+            Auth:
+              Authorizer: CognitoRagQueryAuthorizer
 
   IncidentReportsFunction:
     Type: AWS::Serverless::Function
