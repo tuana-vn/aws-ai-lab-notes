@@ -2,13 +2,13 @@
 
 ## Purpose
 
-This runbook explains how to deploy the first Cognito-protected route, create a test user, set the required custom attributes, obtain an ID token, and call `POST /rag/query` with an `Authorization` header.
+This runbook explains how to deploy the Cognito-protected API routes, create a test user, set the required custom attributes, obtain an ID token, and call the protected endpoints with an `Authorization` header.
 
-This runbook is for the first protected-route rollout only:
+This runbook covers the current protected-route rollout:
 
-- `POST /rag/query`, `POST /documents`, `POST /agent/run`, and the approval routes are protected in this phase
+- `POST /chat`, `POST /echo`, `POST /rag/query`, `POST /documents`, `POST /agent/run`, the approval routes, and `GET /incident-reports/{reportId}` are protected in this phase
 - `GET /health` remains public
-- `/echo`, `/chat`, and `/incident-reports/*` remain unchanged
+- `POST /chat` remains a smoke-test endpoint only; it is not the controlled RAG path
 
 This runbook does not claim production-ready authentication.
 
@@ -469,7 +469,76 @@ Expected result:
 - HTTP `200`
 - response body contains the created incident report record for the executed approval
 
-## 16. Run the Evaluation with a Token
+## 16. Test Protected /chat
+
+No-token `/chat` should fail at API Gateway:
+
+```bash
+curl -i -sS \
+  -X POST "$API_BASE_URL/chat" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "message": "Hello from unauthenticated smoke test"
+  }'
+```
+
+Expected result:
+
+- HTTP `401` or `403`
+
+Valid-token `/chat` should still return a Bedrock response:
+
+```bash
+curl -i -sS \
+  -X POST "$API_BASE_URL/chat" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $AUTH_TOKEN" \
+  -d '{
+    "message": "Hello from authenticated smoke test"
+  }'
+```
+
+Expected result:
+
+- HTTP `200`
+- response contains a valid chat result
+- `/chat` remains a smoke-test endpoint only and not the controlled enterprise RAG path
+
+## 17. Test Protected /echo
+
+No-token `/echo` should fail at API Gateway:
+
+```bash
+curl -i -sS \
+  -X POST "$API_BASE_URL/echo" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "message": "Hello from unauthenticated echo test"
+  }'
+```
+ 
+Expected result:
+
+- HTTP `401` or `403`
+
+Valid-token `/echo` should still return the expected echo response:
+
+```bash
+curl -i -sS \
+  -X POST "$API_BASE_URL/echo" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $AUTH_TOKEN" \
+  -d '{
+    "message": "Hello from authenticated echo test"
+  }'
+```
+
+Expected result:
+
+- HTTP `200`
+- response echoes the request payload in the current debug format
+
+## 18. Run the Evaluation with a Token
 
 The evaluation script supports token-based calls through `AUTH_TOKEN` or `AUTHORIZATION_HEADER`.
 
@@ -496,17 +565,23 @@ If token mode is active after `/rag/query` protection, the current expected summ
 
 The skipped case is `Q006`, which is intentionally excluded in token mode because trusted-header spoofing is not the active auth source.
 
-## 17. Notes on Scope and Compatibility
+## 19. Notes on Scope and Compatibility
 
-- `POST /rag/query`, `POST /documents`, `POST /agent/run`, `GET /approvals/{approvalId}`, `POST /approvals/{approvalId}/decision`, `POST /approvals/{approvalId}/execute`, and `GET /incident-reports/{reportId}` are protected in this phase.
+- `POST /chat`, `POST /echo`, `POST /rag/query`, `POST /documents`, `POST /agent/run`, `GET /approvals/{approvalId}`, `POST /approvals/{approvalId}/decision`, `POST /approvals/{approvalId}/execute`, and `GET /incident-reports/{reportId}` are protected in this phase.
 - The backend policy gate still validates `projectId` and `customerId` against the claims-backed `AccessContext`.
 - Trusted headers remain available for local compatibility and for routes that are still intentionally unprotected.
 - The mock authorizer-claims resolver path remains useful for local testing even after Cognito is added.
+- `POST /chat` remains a smoke-test endpoint only and should not be presented as the controlled RAG path.
+- `POST /echo` remains a debug endpoint; this phase adds authentication but does not remove or disable it.
 - Incident report business logic remains unchanged in this phase; authentication is added at API Gateway.
 - Approval business logic still validates approval state and action type after authentication.
 
-## 18. Troubleshooting
+## 20. Troubleshooting
 
+- If unauthenticated `/chat` still succeeds, verify the route is actually attached to the Cognito authorizer in the deployed template.
+- If authenticated `/chat` fails, confirm the token is valid and the request body matches the handler's expected input shape.
+- If unauthenticated `/echo` still succeeds, verify the route is actually attached to the Cognito authorizer in the deployed template.
+- If authenticated `/echo` fails, confirm the token is valid and the request body matches the current echo request shape.
 - If unauthenticated `/documents` still succeeds, verify the route is actually attached to the Cognito authorizer in the deployed template.
 - If authenticated `/documents` fails, confirm the `Authorization` header is present and the token is still valid.
 - If unauthenticated `/rag/query` still succeeds, verify the route is actually attached to the Cognito authorizer in the deployed template.
