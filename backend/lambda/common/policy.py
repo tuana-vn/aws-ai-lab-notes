@@ -45,7 +45,65 @@ def _parse_allowed_values(raw_value: str | None) -> list[str]:
     return values
 
 
-def resolve_access_context(event) -> AccessContext:
+def _parse_space_separated_values(raw_value: str | None) -> list[str]:
+    if not isinstance(raw_value, str):
+        return []
+
+    values = [item.strip() for item in raw_value.split() if item.strip()]
+    return values
+
+
+def _parse_group_values(raw_value: object) -> list[str]:
+    if isinstance(raw_value, list):
+        return [item.strip() for item in raw_value if isinstance(item, str) and item.strip()]
+
+    if isinstance(raw_value, str):
+        return [item.strip() for item in raw_value.split(",") if item.strip()]
+
+    return []
+
+
+def _get_authorizer_claims(event: dict[str, object]) -> dict[str, object] | None:
+    request_context = event.get("requestContext")
+    if not isinstance(request_context, dict):
+        return None
+
+    authorizer = request_context.get("authorizer")
+    if not isinstance(authorizer, dict):
+        return None
+
+    claims = authorizer.get("claims")
+    if not isinstance(claims, dict):
+        return None
+
+    return claims
+
+
+def _resolve_authorizer_claims_context(claims: dict[str, object]) -> AccessContext:
+    preferred_username = claims.get("preferred_username")
+    username = claims.get("username")
+    subject = claims.get("sub")
+
+    user_id = "anonymous"
+    for candidate in (preferred_username, username, subject):
+        if isinstance(candidate, str) and candidate.strip():
+            user_id = candidate.strip()
+            break
+
+    principal_id = subject.strip() if isinstance(subject, str) and subject.strip() else user_id
+
+    return AccessContext(
+        user_id=user_id,
+        principal_id=principal_id,
+        allowed_project_ids=_parse_allowed_values(claims.get("custom:project_ids")),
+        allowed_customer_ids=_parse_allowed_values(claims.get("custom:customer_ids")),
+        scopes=_parse_space_separated_values(claims.get("scope")),
+        groups=_parse_group_values(claims.get("cognito:groups")),
+        auth_source="mock_authorizer_claims",
+    )
+
+
+def _resolve_trusted_header_context(event: dict[str, object]) -> AccessContext:
     headers = event.get("headers") or {}
     if not isinstance(headers, dict):
         headers = {}
@@ -65,6 +123,14 @@ def resolve_access_context(event) -> AccessContext:
         auth_source="trusted_headers",
         principal_id=user_id,
     )
+
+
+def resolve_access_context(event) -> AccessContext:
+    claims = _get_authorizer_claims(event)
+    if claims is not None:
+        return _resolve_authorizer_claims_context(claims)
+
+    return _resolve_trusted_header_context(event)
 
 
 def _get_scope_values(access_context, field_name: str) -> list[str]:

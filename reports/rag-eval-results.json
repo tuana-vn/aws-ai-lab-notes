@@ -1,6 +1,6 @@
 {
   "apiBaseUrl": "https://mivf8v07ee.execute-api.ap-southeast-1.amazonaws.com/v1",
-  "timestamp": "2026-05-28T09:43:41.914523+00:00",
+  "timestamp": "2026-05-28T10:54:32.255642+00:00",
   "documentResponse": {
     "httpStatusCode": 200,
     "body": {
@@ -35,9 +35,9 @@
       "response": {
         "httpStatusCode": 200,
         "body": {
-          "requestId": "38a8893e-557d-4ece-b850-954f25dc8805",
+          "requestId": "835c9656-c418-43ed-bc21-5cb308d0dcaf",
           "userId": "user-learning",
-          "answer": "Amazon API Gateway helps developers create, publish, maintain, monitor, and secure APIs. It can act as the front door for applications to access backend services such as Lambda functions or container-based services. API Gateway can handle routing, throttling, authorization, request validation, and integration with AWS services. It helps protect backend services through throttling, authorization boundaries, request validation, and controlled integration with backend services.\n\n[Source: documentId=api-gateway-note-demo, chunkId=chunk-0001]\n[Source: documentId=api-gateway-note, chunkId=chunk-0001]",
+          "answer": "Amazon API Gateway helps developers create, publish, maintain, monitor, and secure APIs. It acts as the front door for applications to access backend services such as Lambda functions or container-based services. API Gateway can handle routing, throttling, authorization, request validation, and integration with AWS services. It also helps protect backend services through throttling, authorization boundaries, request validation, and controlled integration with backend services.\n\n[Source: documentId=api-gateway-note-demo, chunkId=chunk-0001]\n[Source: documentId=api-gateway-note, chunkId=chunk-0001]",
           "sources": [
             {
               "documentId": "api-gateway-note-demo",
@@ -105,9 +105,9 @@
       "response": {
         "httpStatusCode": 200,
         "body": {
-          "requestId": "0209b27f-10d5-40f5-8aa9-d044bb69f008",
+          "requestId": "59e62112-fc0e-4262-bbf8-fd198bdef5a9",
           "userId": "user-learning",
-          "answer": "API Gateway can limit excessive traffic through throttling. Throttling helps protect backend services by controlling the rate at which clients can make requests.\n\n[Source: documentId=api-gateway-note-demo, chunkId=chunk-0001]\n[Source: documentId=api-gateway-note, chunkId=chunk-0001]",
+          "answer": "API Gateway can limit excessive traffic through throttling. Throttling helps protect backend services by controlling the rate of incoming requests.\n\n[Source: documentId=api-gateway-note-demo, chunkId=chunk-0001]\n[Source: documentId=api-gateway-note, chunkId=chunk-0001]",
           "sources": [
             {
               "documentId": "api-gateway-note-demo",
@@ -176,7 +176,7 @@
       "response": {
         "httpStatusCode": 200,
         "body": {
-          "requestId": "e73751ac-a44e-4c7d-8700-91c188019730",
+          "requestId": "8e6a360b-01c5-4cc8-ab05-ffdde0d529f1",
           "userId": "user-learning",
           "answer": "API Gateway protects backend services by using authorization, throttling, and request validation before requests reach backend integrations. \n\n[Source: documentId=api-gateway-note, chunkId=chunk-0001]",
           "sources": [
@@ -245,7 +245,7 @@
       "response": {
         "httpStatusCode": 200,
         "body": {
-          "requestId": "8748cf5c-b3ba-42cc-899c-e91fa62ed7c7",
+          "requestId": "c838b872-9dbb-4491-b998-2f126b4507b3",
           "userId": "user-learning",
           "answer": "I do not know based on the available documents.",
           "sources": [],
@@ -346,7 +346,7 @@
       "response": {
         "httpStatusCode": 200,
         "body": {
-          "requestId": "c6436011-409b-4c25-82db-efa4ccef29c7",
+          "requestId": "5f5e5fb1-3fe0-4505-b140-bbf6875cf508",
           "userId": "user-learning",
           "answer": "I cannot process this request because it violates the input safety policy.",
           "sources": [],
@@ -395,7 +395,7 @@
       "response": {
         "httpStatusCode": 200,
         "body": {
-          "requestId": "56f7bdcf-3551-4367-86d8-ccf3ed1b555d",
+          "requestId": "d37c978d-fc0a-4619-942c-543357c455d0",
           "userId": "user-learning",
           "answer": "I cannot process this request because it violates the input safety policy.",
           "sources": [],
@@ -441,7 +441,7 @@
       "response": {
         "httpStatusCode": 200,
         "body": {
-          "requestId": "b326f714-42a5-4600-bd13-cdbf1d17f066",
+          "requestId": "de366206-e8fd-4932-b43e-20d09ae7f353",
           "userId": "user-learning",
           "answer": "Amazon API Gateway is a managed service that helps developers create, publish, maintain, monitor, and secure APIs. It acts as the front door for applications to access backend services like Lambda functions or container-based services. API Gateway handles routing, throttling, authorization, request validation, and integrates with AWS services. It protects backend services through authorization, throttling, and request validation.\n\n[Source: documentId=api-gateway-note, chunkId=chunk-0001]",
           "sources": [
@@ -516,7 +516,7 @@
       "response": {
         "httpStatusCode": 200,
         "body": {
-          "requestId": "f9122e84-d08d-404c-9c81-41c5d22f6686",
+          "requestId": "eba0ab3d-465b-460b-806b-0202249aeed5",
           "agentMode": "read_only",
           "task": "answer_question",
           "plan": [
@@ -534,7 +534,7 @@
               "readOnly": true
             }
           ],
-          "answer": "Amazon API Gateway helps developers create, publish, maintain, monitor, and secure APIs. It acts as the front door for applications to access backend services such as Lambda functions or container-based services. API Gateway can handle routing, throttling, authorization, request validation, and integration with AWS services. It also helps protect backend services through throttling, authorization boundaries, request validation, and controlled integration with backend services.\n\n[Source: documentId=api-gateway-note-demo, chunkId=chunk-0001]\n[Source: documentId=api-gateway-note, chunkId=chunk-0001]",
+          "answer": "Amazon API Gateway helps developers create, publish, maintain, monitor, and secure APIs. It can act as the front door for applications to access backend services such as Lambda functions or container-based services. API Gateway can handle routing, throttling, authorization, request validation, and integration with AWS services. It helps protect backend services through throttling, authorization boundaries, request validation, and controlled integration with backend services.\n\n[Source: documentId=api-gateway-note-demo, chunkId=chunk-0001]\n[Source: documentId=api-gateway-note, chunkId=chunk-0001]",
           "sources": [
             {
               "documentId": "api-gateway-note-demo",
@@ -590,7 +590,7 @@
       "response": {
         "httpStatusCode": 200,
         "body": {
-          "requestId": "10fa51a1-e1d6-4126-847b-e8917c6d7377",
+          "requestId": "f4c9c324-27de-40a9-b923-0a6a5f88ac8f",
           "agentMode": "read_only",
           "task": "inspect_trace",
           "plan": [
@@ -608,7 +608,7 @@
             }
           ],
           "trace": {
-            "targetRequestId": "c6436011-409b-4c25-82db-efa4ccef29c7",
+            "targetRequestId": "5f5e5fb1-3fe0-4505-b140-bbf6875cf508",
             "path": "/rag/query",
             "userId": "user-learning",
             "status": "blocked",
@@ -648,7 +648,7 @@
       "response": {
         "httpStatusCode": 200,
         "body": {
-          "requestId": "a2f3b35b-0dcb-410c-8be6-be57096c5b4e",
+          "requestId": "2a9caf18-1304-4b5e-a35d-e00493f7e881",
           "agentMode": "read_only",
           "task": "search_logs",
           "plan": [
@@ -668,7 +668,7 @@
           "logSummary": {
             "preset": "blocked",
             "minutes": 120,
-            "matchedEvents": 5
+            "matchedEvents": 7
           },
           "events": [
             {
@@ -690,9 +690,17 @@
             {
               "timestamp": "2026-05-28T09:43:53.482000+00:00",
               "messagePreview": "{\"level\": \"WARNING\", \"logger\": \"common.rag_service\", \"message\": \"rag query blocked by input guardrail\", \"timestamp\": \"2026-05-28 09:43:53,482\", \"request_id\": \"56f7bdcf-3551-4367-86d8-ccf3ed1b555d\", \"path\": \"/rag/query\", \"user_id\": \"user-learning\", \"filters\": {\"projectId\": \"learning\", \"customerId\": \"internal\"}, \"guardrail_action\": \"block\", \"guardrail_reason\": \"unsafe_data_access\", \"guardrail_matched_rule\": \"show_me_all_customer_secrets\", \"output_guardrail_action\": \"not_applicable\", \"output_guardr"
+            },
+            {
+              "timestamp": "2026-05-28T10:54:49.065000+00:00",
+              "messagePreview": "{\"level\": \"WARNING\", \"logger\": \"common.rag_service\", \"message\": \"rag query blocked by input guardrail\", \"timestamp\": \"2026-05-28 10:54:49,064\", \"request_id\": \"5f5e5fb1-3fe0-4505-b140-bbf6875cf508\", \"path\": \"/rag/query\", \"user_id\": \"user-learning\", \"filters\": {\"projectId\": \"learning\", \"customerId\": \"internal\"}, \"guardrail_action\": \"block\", \"guardrail_reason\": \"prompt_injection\", \"guardrail_matched_rule\": \"ignore_previous_instructions\", \"output_guardrail_action\": \"not_applicable\", \"output_guardrai"
+            },
+            {
+              "timestamp": "2026-05-28T10:54:49.425000+00:00",
+              "messagePreview": "{\"level\": \"WARNING\", \"logger\": \"common.rag_service\", \"message\": \"rag query blocked by input guardrail\", \"timestamp\": \"2026-05-28 10:54:49,424\", \"request_id\": \"d37c978d-fc0a-4619-942c-543357c455d0\", \"path\": \"/rag/query\", \"user_id\": \"user-learning\", \"filters\": {\"projectId\": \"learning\", \"customerId\": \"internal\"}, \"guardrail_action\": \"block\", \"guardrail_reason\": \"unsafe_data_access\", \"guardrail_matched_rule\": \"show_me_all_customer_secrets\", \"output_guardrail_action\": \"not_applicable\", \"output_guardr"
             }
           ],
-          "answer": "Found 5 matching log event(s) for preset blocked in the last 120 minutes.",
+          "answer": "Found 7 matching log event(s) for preset blocked in the last 120 minutes.",
           "status": "completed"
         }
       },
@@ -718,7 +726,7 @@
       "response": {
         "httpStatusCode": 200,
         "body": {
-          "requestId": "e3c4ee9a-64a3-4d0a-8421-22ad21bda26c",
+          "requestId": "941e4e6a-d2ac-4f71-b929-6e66dcccf5a1",
           "agentMode": "read_only",
           "task": "investigate_recent_blocks",
           "plan": [
@@ -795,10 +803,10 @@
       "response": {
         "httpStatusCode": 200,
         "body": {
-          "requestId": "c3122dc9-40fc-4ee0-86d3-3396937bb497",
+          "requestId": "46993a3d-8f58-486c-9ce3-5d5f2f5b0154",
           "agentMode": "approval_required",
           "task": "propose_incident_report",
-          "approvalId": "approval-185d8f93-e5d2-46b1-91c9-acc4fb0a7b21",
+          "approvalId": "approval-7eb16938-dae9-413f-8de8-e018f70b8b76",
           "plan": [
             "Validate request",
             "Run bounded blocked-request investigation",
@@ -891,10 +899,10 @@
       "response": {
         "httpStatusCode": 200,
         "body": {
-          "requestId": "30f73508-8ef9-4f88-8326-81228f377a5e",
+          "requestId": "fde7b5b9-6ddc-4714-bfc3-915902d0c147",
           "agentMode": "approval_required",
           "task": "propose_incident_report",
-          "approvalId": "approval-fb451bda-c7de-4c68-860c-96e91d38f553",
+          "approvalId": "approval-28431cbe-101b-4eab-b139-d3ca28245628",
           "plan": [
             "Validate request",
             "Run bounded blocked-request investigation",
@@ -963,12 +971,12 @@
           "answer": "I prepared an incident report proposal. It has not been executed and requires human approval.",
           "status": "approval_required",
           "approvalRecord": {
-            "decision": null,
             "decided_by": null,
-            "execution_status": "pending_approval",
+            "decision": null,
             "task": "propose_incident_report",
-            "created_at": "2026-05-28T09:44:05.534940+00:00",
-            "request_id": "30f73508-8ef9-4f88-8326-81228f377a5e",
+            "execution_status": "pending_approval",
+            "created_at": "2026-05-28T10:55:04.210093+00:00",
+            "request_id": "fde7b5b9-6ddc-4714-bfc3-915902d0c147",
             "proposed_action": {
               "recommendedNextSteps": [
                 "Review blocked request patterns.",
@@ -976,20 +984,20 @@
                 "Tune guardrail rules if repeated false positives are found.",
                 "Consider adding CloudWatch alarms for blocked request spikes."
               ],
-              "severity": "low",
-              "title": "Recent blocked AI requests detected",
               "summary": "Blocked-request investigation for the last 120 minutes found 5 matching log event(s) and inspected 3 trace record(s). Found 5 blocked log event(s). Inspected 3 trace record(s). Common blocked reasons: prompt_injection, unsafe_data_access.",
+              "title": "Recent blocked AI requests detected",
               "actionType": "create_incident_report",
+              "severity": "low",
               "requiresApproval": true,
               "executionStatus": "pending_approval"
             },
             "status": "pending_approval",
             "comment": null,
-            "approval_id": "approval-fb451bda-c7de-4c68-860c-96e91d38f553",
+            "approval_id": "approval-28431cbe-101b-4eab-b139-d3ca28245628",
             "decided_at": null
           },
           "decisionResult": {
-            "approvalId": "approval-fb451bda-c7de-4c68-860c-96e91d38f553",
+            "approvalId": "approval-28431cbe-101b-4eab-b139-d3ca28245628",
             "status": "approved",
             "decision": "approved",
             "executionStatus": "approved_not_executed"
@@ -1023,10 +1031,10 @@
       "response": {
         "httpStatusCode": 200,
         "body": {
-          "requestId": "cfebc40e-6f42-40d6-b7ec-6d04fa6aeca8",
+          "requestId": "2fcd45b7-3bed-4a4c-97bc-1d51ce97f901",
           "agentMode": "approval_required",
           "task": "propose_incident_report",
-          "approvalId": "approval-d598cc27-a5aa-4933-981b-149e3017c9d9",
+          "approvalId": "approval-df3e60e7-6df8-4400-9e5e-d9320d53a87f",
           "plan": [
             "Validate request",
             "Run bounded blocked-request investigation",
@@ -1095,34 +1103,34 @@
           "answer": "I prepared an incident report proposal. It has not been executed and requires human approval.",
           "status": "approval_required",
           "decisionResult": {
-            "approvalId": "approval-d598cc27-a5aa-4933-981b-149e3017c9d9",
+            "approvalId": "approval-df3e60e7-6df8-4400-9e5e-d9320d53a87f",
             "status": "approved",
             "decision": "approved",
             "executionStatus": "approved_not_executed"
           },
           "executeResult": {
-            "approvalId": "approval-d598cc27-a5aa-4933-981b-149e3017c9d9",
-            "reportId": "report-0d73695e-e31e-4f4c-8325-d2d7b56fa959",
+            "approvalId": "approval-df3e60e7-6df8-4400-9e5e-d9320d53a87f",
+            "reportId": "report-abcfdaff-5988-4d42-932f-c2737ea0abac",
             "status": "executed",
             "executionStatus": "executed",
             "message": "Approved action executed by creating an internal incident report record."
           },
           "reportRecord": {
             "summary": "Blocked-request investigation for the last 120 minutes found 5 matching log event(s) and inspected 3 trace record(s). Found 5 blocked log event(s). Inspected 3 trace record(s). Common blocked reasons: prompt_injection, unsafe_data_access.",
-            "created_at": "2026-05-28T09:44:12.936238+00:00",
+            "created_at": "2026-05-28T10:55:11.347813+00:00",
             "created_by": "eval-user",
             "status": "created",
-            "approval_id": "approval-d598cc27-a5aa-4933-981b-149e3017c9d9",
-            "severity": "low",
+            "approval_id": "approval-df3e60e7-6df8-4400-9e5e-d9320d53a87f",
+            "source_request_id": "2fcd45b7-3bed-4a4c-97bc-1d51ce97f901",
             "recommended_next_steps": [
               "Review blocked request patterns.",
               "Review prompt injection and unsafe data access attempts.",
               "Tune guardrail rules if repeated false positives are found.",
               "Consider adding CloudWatch alarms for blocked request spikes."
             ],
-            "title": "Recent blocked AI requests detected",
-            "report_id": "report-0d73695e-e31e-4f4c-8325-d2d7b56fa959",
-            "source_request_id": "cfebc40e-6f42-40d6-b7ec-6d04fa6aeca8"
+            "report_id": "report-abcfdaff-5988-4d42-932f-c2737ea0abac",
+            "severity": "low",
+            "title": "Recent blocked AI requests detected"
           }
         },
         "approvalDecisionHttpStatusCode": 200,

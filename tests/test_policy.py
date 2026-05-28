@@ -13,8 +13,19 @@ if str(LAMBDA_ROOT) not in sys.path:
 from common.policy import AccessContext, AccessDeniedError, assert_filters_allowed, resolve_access_context
 
 
-def _build_event(headers: dict[str, str] | None = None) -> dict:
-    return {"headers": headers or {}}
+def _build_event(
+    headers: dict[str, str] | None = None,
+    claims: dict[str, object] | None = None,
+    authorizer: dict[str, object] | None = None,
+) -> dict:
+    event = {"headers": headers or {}}
+
+    if claims is not None:
+        event["requestContext"] = {"authorizer": {"claims": claims}}
+    elif authorizer is not None:
+        event["requestContext"] = {"authorizer": authorizer}
+
+    return event
 
 
 class ResolveAccessContextTests(unittest.TestCase):
@@ -99,6 +110,92 @@ class ResolveAccessContextTests(unittest.TestCase):
 
         self.assertEqual(access_context.allowed_project_ids, [])
         self.assertEqual(access_context.allowed_customer_ids, [])
+
+    def test_authorizer_claims_map_user_principal_and_auth_source(self):
+        access_context = resolve_access_context(
+            _build_event(
+                claims={
+                    "preferred_username": "alice",
+                    "username": "alice-user",
+                    "sub": "subject-123",
+                    "custom:project_ids": "learning",
+                    "custom:customer_ids": "internal",
+                }
+            )
+        )
+
+        self.assertEqual(access_context.user_id, "alice")
+        self.assertEqual(access_context.principal_id, "subject-123")
+        self.assertEqual(access_context.auth_source, "mock_authorizer_claims")
+        self.assertEqual(access_context.allowed_project_ids, ["learning"])
+        self.assertEqual(access_context.allowed_customer_ids, ["internal"])
+
+    def test_authorizer_claims_map_scope_claim_to_scopes_list(self):
+        access_context = resolve_access_context(
+            _build_event(
+                claims={
+                    "sub": "subject-123",
+                    "scope": "rag:query documents:write agent:run",
+                }
+            )
+        )
+
+        self.assertEqual(access_context.scopes, ["rag:query", "documents:write", "agent:run"])
+
+    def test_authorizer_claims_map_groups_string_to_groups_list(self):
+        access_context = resolve_access_context(
+            _build_event(
+                claims={
+                    "sub": "subject-123",
+                    "cognito:groups": "reviewers, operators , admins",
+                }
+            )
+        )
+
+        self.assertEqual(access_context.groups, ["reviewers", "operators", "admins"])
+
+    def test_authorizer_claims_map_groups_list_to_groups_list(self):
+        access_context = resolve_access_context(
+            _build_event(
+                claims={
+                    "sub": "subject-123",
+                    "cognito:groups": ["reviewers", "operators", ""],
+                }
+            )
+        )
+
+        self.assertEqual(access_context.groups, ["reviewers", "operators"])
+
+    def test_authorizer_claims_fall_back_to_anonymous_when_identity_claims_missing(self):
+        access_context = resolve_access_context(
+            _build_event(
+                claims={
+                    "custom:project_ids": "learning",
+                    "custom:customer_ids": "internal",
+                }
+            )
+        )
+
+        self.assertEqual(access_context.user_id, "anonymous")
+        self.assertEqual(access_context.principal_id, "anonymous")
+
+    def test_falls_back_to_trusted_headers_when_authorizer_claims_absent(self):
+        access_context = resolve_access_context(
+            _build_event(
+                headers={
+                    "X-User-Id": "user-learning",
+                    "X-Allowed-Project-Ids": "learning",
+                    "X-Allowed-Customer-Ids": "internal",
+                },
+                authorizer={},
+            )
+        )
+
+        self.assertEqual(access_context.user_id, "user-learning")
+        self.assertEqual(access_context.principal_id, "user-learning")
+        self.assertEqual(access_context.auth_source, "trusted_headers")
+        self.assertEqual(access_context.allowed_project_ids, ["learning"])
+        self.assertEqual(access_context.allowed_customer_ids, ["internal"])
 
 
 class AssertFiltersAllowedTests(unittest.TestCase):
@@ -185,7 +282,49 @@ class AssertFiltersAllowedTests(unittest.TestCase):
             _build_event(
                 {
                     "X-Allowed-Project-Ids": "learning",
-                    "X-Allowed-Customer-Ids": "", 
+                    "X-Allowed-Customer-Ids": "",
+                }
+            )
+        )
+
+        with self.assertRaises(AccessDeniedError):
+            assert_filters_allowed({"customerId": "internal"}, access_context)
+
+    def test_authorizer_claims_project_and_customer_scope_allow_matching_filters(self):
+        access_context = resolve_access_context(
+            _build_event(
+                claims={
+                    "sub": "subject-123",
+                    "custom:project_ids": "learning, alpha",
+                    "custom:customer_ids": "internal, customer-a",
+                }
+            )
+        )
+
+        assert_filters_allowed(
+            {"projectId": "alpha", "customerId": "customer-a"},
+            access_context,
+        )
+
+    def test_authorizer_claims_missing_project_claim_denies_requested_project(self):
+        access_context = resolve_access_context(
+            _build_event(
+                claims={
+                    "sub": "subject-123",
+                    "custom:customer_ids": "internal",
+                }
+            )
+        )
+
+        with self.assertRaises(AccessDeniedError):
+            assert_filters_allowed({"projectId": "learning"}, access_context)
+
+    def test_authorizer_claims_missing_customer_claim_denies_requested_customer(self):
+        access_context = resolve_access_context(
+            _build_event(
+                claims={
+                    "sub": "subject-123",
+                    "custom:project_ids": "learning",
                 }
             )
         )
