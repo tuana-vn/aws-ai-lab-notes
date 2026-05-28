@@ -402,7 +402,7 @@ def lambda_handler(event, context):
 
     started_at = perf_counter()
     plan = build_plan(payload["task"])
-    user_id = resolve_access_context(event)["user_id"]
+    user_id = resolve_access_context(event).user_id
 
     if payload["task"] == ANSWER_QUESTION_TASK:
         rag_result = run_rag_query(

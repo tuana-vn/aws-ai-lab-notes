@@ -194,7 +194,7 @@ def _save_trace(trace_record, save_trace):
 def run_rag_query(question: str, filters: dict, event: dict, request_id: str, path: str, save_trace: bool = True) -> dict:
     started_at = perf_counter()
     access_context = resolve_access_context(event)
-    user_id = access_context["user_id"]
+    user_id = access_context.user_id
     guardrail_result = evaluate_input_guardrail(question)
     output_guardrail_result = dict(NO_MODEL_ANSWER_OUTPUT_GUARDRAIL)
 

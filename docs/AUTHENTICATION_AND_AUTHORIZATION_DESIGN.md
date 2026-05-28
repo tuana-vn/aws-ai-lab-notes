@@ -8,6 +8,10 @@ The current trusted header model is useful for learning because it makes the pol
 
 This document is design-only. It does not claim that Cognito, JWT validation, authorizers, or claim-based authorization are implemented in the current repository.
 
+Phase 8B note:
+
+An internal `AccessContext` abstraction can be introduced while still using trusted headers. That refactor does not change the Phase 8A target design and does not mean real authentication is implemented.
+
 ## Current Implementation
 
 The current PoC uses a learning-only header model:

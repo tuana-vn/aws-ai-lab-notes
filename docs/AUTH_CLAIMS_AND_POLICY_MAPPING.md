@@ -6,6 +6,10 @@ This document explains how the current learning headers map to future verified i
 
 It is a target design reference for future phases. It does not claim that verified JWT claims, Cognito, or an authorizer are implemented in the current repository.
 
+Phase 8B note:
+
+An internal `AccessContext` model can be used to normalize the current trusted-header context before verified claims exist. That is still an internal refactor, not real authentication.
+
 ## Current Header-Based Context
 
 The current backend policy context is built from three caller-provided headers:
