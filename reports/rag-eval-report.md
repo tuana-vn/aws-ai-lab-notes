@@ -1,7 +1,7 @@
 # RAG Evaluation Report
 
 - API base URL: https://mivf8v07ee.execute-api.ap-southeast-1.amazonaws.com/v1
-- timestamp: 2026-05-28T10:54:32.255642+00:00
+- timestamp: 2026-05-28T11:06:55.455711+00:00
 - total cases: 16
 - passed cases: 16
 - failed cases: 0
@@ -65,7 +65,7 @@ Min Similarity Score: 0.25
 
 Output Guardrail: action=allow, reason=valid_grounded_answer, warnings=-
 
-Answer: API Gateway can limit excessive traffic through throttling. Throttling helps protect backend services by controlling the rate of incoming requests. [Source: documentId=api-gateway-note-demo, chunkId=chunk-0001] [Source: documentId=api-ga...
+Answer: API Gateway can limit excessive traffic through throttling. Throttling helps protect backend services by controlling the number of requests that can be made to an API within a certain time period. [Source: documentId=api-gateway-note-dem...
 
 ### Q003
 
@@ -205,7 +205,7 @@ Min Similarity Score: 0.25
 
 Output Guardrail: action=allow, reason=valid_grounded_answer, warnings=-
 
-Answer: Amazon API Gateway is a managed service that helps developers create, publish, maintain, monitor, and secure APIs. It acts as the front door for applications to access backend services like Lambda functions or container-based services. A...
+Answer: Amazon API Gateway is a managed service that helps developers create, publish, maintain, monitor, and secure APIs. It acts as the front door for applications to access backend services such as Lambda functions or container-based services...
 
 ### Q010
 
@@ -225,7 +225,7 @@ Min Similarity Score: -
 
 Output Guardrail: action=allow, reason=valid_grounded_answer, warnings=-
 
-Answer: Amazon API Gateway helps developers create, publish, maintain, monitor, and secure APIs. It can act as the front door for applications to access backend services such as Lambda functions or container-based services. API Gateway can handl...
+Answer: Amazon API Gateway helps developers create, publish, maintain, monitor, and secure APIs. It acts as the front door for applications to access backend services such as Lambda functions or container-based services. API Gateway can handle r...
 
 ### Q011
 
@@ -265,7 +265,7 @@ Min Similarity Score: -
 
 Output Guardrail: -
 
-Answer: Found 7 matching log event(s) for preset blocked in the last 120 minutes.
+Answer: Found 9 matching log event(s) for preset blocked in the last 120 minutes.
 
 ### Q013
 
@@ -285,7 +285,7 @@ Min Similarity Score: -
 
 Output Guardrail: -
 
-Answer: Found 5 blocked log event(s). Inspected 3 trace record(s). Common blocked reasons: prompt_injection, unsafe_data_access.
+Answer: Found 7 blocked log event(s). Inspected 3 trace record(s). Common blocked reasons: prompt_injection, unsafe_data_access.
 
 ### Q014
 

@@ -31,6 +31,27 @@ def _load_json(path):
         return json.load(file_handle)
 
 
+def _get_authorization_header():
+    authorization_header = os.environ.get("AUTHORIZATION_HEADER", "").strip()
+    if authorization_header:
+        return authorization_header
+
+    auth_token = os.environ.get("AUTH_TOKEN", "").strip()
+    if auth_token:
+        return f"Bearer {auth_token}"
+
+    return ""
+
+
+def _apply_authorization_header(headers=None):
+    request_headers = dict(headers or {})
+    authorization_header = _get_authorization_header()
+    if authorization_header:
+        request_headers["Authorization"] = authorization_header
+
+    return request_headers
+
+
 def _post_json(url, payload, headers=None):
     body = json.dumps(payload).encode("utf-8")
     request_headers = {"Content-Type": "application/json"}
@@ -793,7 +814,11 @@ def main():
     document = _load_json(repository_root / DOCUMENT_PATH)
     questions = _load_json(repository_root / QUESTIONS_PATH)
 
-    document_response = _post_json(f"{api_base_url}/documents", document)
+    document_response = _post_json(
+        f"{api_base_url}/documents",
+        document,
+        headers=_apply_authorization_header(),
+    )
     if document_response["httpStatusCode"] >= 400:
         raise SystemExit(
             "Document indexing failed: "
@@ -806,6 +831,7 @@ def main():
         request_headers = dict(DEFAULT_REQUEST_HEADERS)
         if isinstance(case_definition.get("headers"), dict):
             request_headers.update(case_definition["headers"])
+        request_headers = _apply_authorization_header(request_headers)
 
         if case_definition.get("type") == "approval_workflow":
             response = _run_approval_workflow_case(api_base_url, case_definition, request_headers)

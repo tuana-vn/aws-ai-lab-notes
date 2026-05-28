@@ -25,11 +25,59 @@ Parameters:
     Description: Burst limit for API Gateway stage throttling.
 
 Resources:
+  CognitoUserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: !Sub aws-ai-platform-users-${EnvironmentName}
+      AdminCreateUserConfig:
+        AllowAdminCreateUserOnly: true
+      AutoVerifiedAttributes:
+        - email
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 12
+          RequireLowercase: true
+          RequireNumbers: true
+          RequireSymbols: false
+          RequireUppercase: true
+          TemporaryPasswordValidityDays: 7
+      Schema:
+        - AttributeDataType: String
+          Mutable: true
+          Name: project_ids
+          StringAttributeConstraints:
+            MaxLength: 2048
+        - AttributeDataType: String
+          Mutable: true
+          Name: customer_ids
+          StringAttributeConstraints:
+            MaxLength: 2048
+
+  CognitoUserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      ClientName: !Sub aws-ai-platform-client-${EnvironmentName}
+      UserPoolId: !Ref CognitoUserPool
+      GenerateSecret: false
+      ExplicitAuthFlows:
+        - ALLOW_USER_PASSWORD_AUTH
+        - ALLOW_REFRESH_TOKEN_AUTH
+        - ALLOW_USER_SRP_AUTH
+      PreventUserExistenceErrors: ENABLED
+      SupportedIdentityProviders:
+        - COGNITO
+
   ApiGateway:
     Type: AWS::Serverless::Api
     Properties:
       StageName: v1
       Name: aws-ai-platform-api
+      Auth:
+        Authorizers:
+          CognitoRagQueryAuthorizer:
+            UserPoolArn: !GetAtt CognitoUserPool.Arn
+            Identity:
+              Header: Authorization
       MethodSettings:
         - ResourcePath: "/*"
           HttpMethod: "*"
@@ -232,6 +280,8 @@ Resources:
             RestApiId: !Ref ApiGateway
             Path: /rag/query
             Method: post
+            Auth:
+              Authorizer: CognitoRagQueryAuthorizer
 
   AgentRunFunction:
     Type: AWS::Serverless::Function
@@ -375,3 +425,15 @@ Outputs:
   IncidentReportsTableName:
     Description: DynamoDB table storing internally executed incident report records.
     Value: !Ref IncidentReportsTable
+
+  CognitoUserPoolId:
+    Description: Cognito User Pool ID for the first protected route rollout.
+    Value: !Ref CognitoUserPool
+
+  CognitoUserPoolClientId:
+    Description: Cognito User Pool Client ID for test user authentication.
+    Value: !Ref CognitoUserPoolClient
+
+  CognitoUserPoolArn:
+    Description: Cognito User Pool ARN used by the API Gateway authorizer.
+    Value: !GetAtt CognitoUserPool.Arn
