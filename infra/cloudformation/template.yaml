@@ -239,6 +239,8 @@ Resources:
             RestApiId: !Ref ApiGateway
             Path: /documents
             Method: post
+            Auth:
+              Authorizer: CognitoRagQueryAuthorizer
 
   RagQueryFunction:
     Type: AWS::Serverless::Function

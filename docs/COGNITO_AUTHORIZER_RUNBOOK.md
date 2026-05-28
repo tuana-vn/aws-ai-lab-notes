@@ -6,9 +6,9 @@ This runbook explains how to deploy the first Cognito-protected route, create a 
 
 This runbook is for the first protected-route rollout only:
 
-- `POST /rag/query` is the only route planned for Cognito protection in this phase
+- `POST /rag/query` and `POST /documents` are protected in this phase
 - `GET /health` remains public
-- `/echo`, `/chat`, `/documents`, `/agent/run`, `/approvals/*`, and `/incident-reports/*` remain unchanged
+- `/echo`, `/chat`, `/agent/run`, `/approvals/*`, and `/incident-reports/*` remain unchanged
 
 This runbook does not claim production-ready authentication.
 
@@ -144,7 +144,40 @@ The first protected-route rollout is expected to use the ID token for practical 
 - `custom:project_ids`
 - `custom:customer_ids`
 
-## 5. Test Unauthenticated /rag/query
+## 5. Test Unauthenticated /documents
+
+This request should now fail at API Gateway before Lambda runs:
+
+```bash
+curl -i -sS \
+  -X POST "$API_BASE_URL/documents" \
+  -H "Content-Type: application/json" \
+  -d @test-data/requests/demo-document-request.json
+```
+
+Expected result:
+
+- HTTP `401` or `403`
+- rejection occurs at the API boundary
+
+## 6. Test Authenticated Allowed /documents
+
+Send the ID token in the `Authorization` header:
+
+```bash
+curl -i -sS \
+  -X POST "$API_BASE_URL/documents" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $AUTH_TOKEN" \
+  -d @test-data/requests/demo-document-request.json
+```
+
+Expected result:
+
+- HTTP `200`
+- `status=indexed`
+
+## 7. Test Unauthenticated /rag/query
 
 This request should now fail at API Gateway before Lambda runs:
 
@@ -166,7 +199,7 @@ Expected result:
 - HTTP `401` or `403`
 - rejection occurs at the API boundary
 
-## 6. Test Authenticated Allowed /rag/query
+## 8. Test Authenticated Allowed /rag/query
 
 Send the ID token in the `Authorization` header:
 
@@ -190,7 +223,7 @@ Expected result:
 - `status=completed` or another valid RAG response state such as `blocked` or `no_source`, depending on the request content
 - request is authenticated at API Gateway and still filtered by the backend policy gate
 
-## 7. Test Authenticated Mismatched Project /rag/query
+## 9. Test Authenticated Mismatched Project /rag/query
 
 Use the same authenticated user but ask for a project outside the user claim scope:
 
@@ -213,7 +246,7 @@ Expected result:
 - HTTP `403`
 - denial comes from the backend policy gate, not from missing authentication
 
-## 8. Run the Evaluation with a Token
+## 10. Run the Evaluation with a Token
 
 The evaluation script supports token-based calls through `AUTH_TOKEN` or `AUTHORIZATION_HEADER`.
 
@@ -233,15 +266,24 @@ Expected result:
 
 - `RAG evaluation complete: 16/16 cases passed`
 
-## 9. Notes on Scope and Compatibility
+If token mode is active after `/rag/query` protection, the current expected summary is:
 
-- `POST /rag/query` is the only route planned for Cognito protection in this phase.
+- `RAG evaluation complete: 15/15 cases passed`
+- `Skipped cases: 1`
+
+The skipped case is `Q006`, which is intentionally excluded in token mode because trusted-header spoofing is not the active auth source.
+
+## 11. Notes on Scope and Compatibility
+
+- `POST /rag/query` and `POST /documents` are protected in this phase.
 - The backend policy gate still validates `projectId` and `customerId` against the claims-backed `AccessContext`.
 - Trusted headers remain available for local compatibility and for routes that are still intentionally unprotected.
 - The mock authorizer-claims resolver path remains useful for local testing even after Cognito is added.
 
-## 10. Troubleshooting
+## 12. Troubleshooting
 
+- If unauthenticated `/documents` still succeeds, verify the route is actually attached to the Cognito authorizer in the deployed template.
+- If authenticated `/documents` fails, confirm the `Authorization` header is present and the token is still valid.
 - If unauthenticated `/rag/query` still succeeds, verify the route is actually attached to the Cognito authorizer in the deployed template.
 - If authenticated `/rag/query` returns `403`, confirm the token includes `custom:project_ids=learning` and `custom:customer_ids=internal`.
 - If custom attributes do not appear in the token, inspect the actual token claims and confirm the first token choice still matches the deployed Cognito configuration.
