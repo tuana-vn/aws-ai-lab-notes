@@ -1,0 +1,8 @@
+{
+  "question": "How does API Gateway protect backend services in this PoC?",
+  "filters": {
+    "projectId": "learning",
+    "customerId": "internal",
+    "documentType": "technical-note"
+  }
+}

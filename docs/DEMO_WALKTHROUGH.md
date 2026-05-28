@@ -119,7 +119,7 @@ Command:
 ```bash
 curl -sS -X POST "$API_BASE_URL/documents" \
   -H "Content-Type: application/json" \
-  --data @test-data/requests/document-request.json | jq .
+  --data @test-data/requests/demo-document-request.json | jq .
 ```
 
 Expected result:
@@ -145,7 +145,7 @@ RAG_SUCCESS_RESPONSE=$(curl -sS -X POST "$API_BASE_URL/rag/query" \
   -H "X-User-Id: user-learning" \
   -H "X-Allowed-Project-Ids: learning" \
   -H "X-Allowed-Customer-Ids: internal" \
-  --data @test-data/requests/rag-query-request.json)
+  --data @test-data/requests/demo-rag-query-request.json)
 printf '%s\n' "$RAG_SUCCESS_RESPONSE" | jq .
 export RAG_SUCCESS_REQUEST_ID=$(printf '%s' "$RAG_SUCCESS_RESPONSE" | jq -r '.requestId')
 echo "RAG_SUCCESS_REQUEST_ID=$RAG_SUCCESS_REQUEST_ID"
