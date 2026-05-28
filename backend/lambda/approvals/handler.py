@@ -5,6 +5,7 @@ from uuid import uuid4
 
 from common.approval_repository import ApprovalRepository
 from common.incident_report_repository import IncidentReportRepository
+from common.policy import AccessDeniedError, assert_permission_allowed, resolve_access_context
 from common.response import json_response
 
 ACTION_APPROVALS_TABLE_NAME = os.environ.get("ACTION_APPROVALS_TABLE_NAME", "")
@@ -114,6 +115,12 @@ def lambda_handler(event, context):
             return json_response(404, {"message": "Approval record not found."})
 
         try:
+            access_context = resolve_access_context(event)
+            assert_permission_allowed("approvals:decide", access_context)
+        except AccessDeniedError as exc:
+            return json_response(403, {"message": str(exc)})
+
+        try:
             decision_request = _parse_decision_body(event)
         except ValueError as exc:
             return json_response(400, {"message": str(exc)})
@@ -141,6 +148,12 @@ def lambda_handler(event, context):
         approval = repository.get_approval(approval_id)
         if approval is None:
             return json_response(404, {"message": "Approval record not found."})
+
+        try:
+            access_context = resolve_access_context(event)
+            assert_permission_allowed("approvals:execute", access_context)
+        except AccessDeniedError as exc:
+            return json_response(403, {"message": str(exc)})
 
         try:
             execute_request = _parse_execute_body(event)

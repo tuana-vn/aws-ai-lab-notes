@@ -10,7 +10,15 @@ LAMBDA_ROOT = REPOSITORY_ROOT / "backend" / "lambda"
 if str(LAMBDA_ROOT) not in sys.path:
     sys.path.insert(0, str(LAMBDA_ROOT))
 
-from common.policy import AccessContext, AccessDeniedError, assert_filters_allowed, resolve_access_context
+from common.policy import (
+    AccessContext,
+    AccessDeniedError,
+    assert_filters_allowed,
+    assert_permission_allowed,
+    has_permission,
+    resolve_access_context,
+    resolve_permissions,
+)
 
 
 def _build_event(
@@ -251,6 +259,91 @@ class AssertFiltersAllowedTests(unittest.TestCase):
 
         with self.assertRaises(AccessDeniedError):
             assert_filters_allowed({"projectId": "learning"}, access_context)
+
+
+class PermissionResolutionTests(unittest.TestCase):
+    def test_direct_scope_allows_matching_permission(self):
+        access_context = AccessContext(
+            user_id="approver-user",
+            principal_id="principal-123",
+            allowed_project_ids=[],
+            allowed_customer_ids=[],
+            scopes=["approvals:decide"],
+        )
+
+        self.assertTrue(has_permission(access_context, "approvals:decide"))
+        assert_permission_allowed("approvals:decide", access_context)
+
+    def test_group_ai_approver_allows_approvals_decide(self):
+        access_context = AccessContext(
+            user_id="approver-user",
+            allowed_project_ids=[],
+            allowed_customer_ids=[],
+            groups=["ai-approver"],
+        )
+
+        self.assertEqual(
+            resolve_permissions(access_context),
+            {"approvals:read", "approvals:decide"},
+        )
+        self.assertTrue(has_permission(access_context, "approvals:decide"))
+
+    def test_group_ai_approver_does_not_allow_approvals_execute(self):
+        access_context = AccessContext(
+            user_id="approver-user",
+            allowed_project_ids=[],
+            allowed_customer_ids=[],
+            groups=["ai-approver"],
+        )
+
+        self.assertFalse(has_permission(access_context, "approvals:execute"))
+        with self.assertRaises(AccessDeniedError):
+            assert_permission_allowed("approvals:execute", access_context)
+
+    def test_group_ai_operator_allows_approvals_execute(self):
+        access_context = AccessContext(
+            user_id="operator-user",
+            allowed_project_ids=[],
+            allowed_customer_ids=[],
+            groups=["ai-operator"],
+        )
+
+        self.assertTrue(has_permission(access_context, "approvals:execute"))
+        assert_permission_allowed("approvals:execute", access_context)
+
+    def test_group_ai_operator_does_not_allow_approvals_decide(self):
+        access_context = AccessContext(
+            user_id="operator-user",
+            allowed_project_ids=[],
+            allowed_customer_ids=[],
+            groups=["ai-operator"],
+        )
+
+        self.assertFalse(has_permission(access_context, "approvals:decide"))
+        with self.assertRaises(AccessDeniedError):
+            assert_permission_allowed("approvals:decide", access_context)
+
+    def test_group_ai_admin_allows_both_approval_permissions(self):
+        access_context = AccessContext(
+            user_id="admin-user",
+            allowed_project_ids=[],
+            allowed_customer_ids=[],
+            groups=["ai-admin"],
+        )
+
+        self.assertTrue(has_permission(access_context, "approvals:decide"))
+        self.assertTrue(has_permission(access_context, "approvals:execute"))
+
+    def test_missing_groups_and_scopes_denies_permission(self):
+        access_context = AccessContext(
+            user_id="plain-user",
+            allowed_project_ids=[],
+            allowed_customer_ids=[],
+        )
+
+        self.assertFalse(has_permission(access_context, "approvals:decide"))
+        with self.assertRaises(AccessDeniedError):
+            assert_permission_allowed("approvals:decide", access_context)
 
     def test_missing_allowed_customer_with_requested_customer_denies(self):
         access_context = resolve_access_context(

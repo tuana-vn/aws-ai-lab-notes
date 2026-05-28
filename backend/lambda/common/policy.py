@@ -3,6 +3,26 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 
+ALL_ROUTE_PERMISSIONS = {
+    "documents:write",
+    "rag:query",
+    "agent:run",
+    "approvals:read",
+    "approvals:decide",
+    "approvals:execute",
+    "incident-reports:read",
+    "chat:invoke",
+    "debug:echo",
+    "ops:health",
+}
+
+GROUP_PERMISSION_MAP = {
+    "ai-approver": {"approvals:read", "approvals:decide"},
+    "ai-operator": {"approvals:read", "approvals:execute", "incident-reports:read"},
+    "ai-admin": set(ALL_ROUTE_PERMISSIONS),
+}
+
+
 class AccessDeniedError(Exception):
     pass
 
@@ -138,6 +158,24 @@ def _get_scope_values(access_context, field_name: str) -> list[str]:
         return getattr(access_context, field_name)
 
     return access_context[field_name]
+
+
+def resolve_permissions(access_context) -> set[str]:
+    permissions = set(_get_scope_values(access_context, "scopes"))
+
+    for group_name in _get_scope_values(access_context, "groups"):
+        permissions.update(GROUP_PERMISSION_MAP.get(group_name, set()))
+
+    return permissions
+
+
+def has_permission(access_context, permission: str) -> bool:
+    return permission in resolve_permissions(access_context)
+
+
+def assert_permission_allowed(permission: str, access_context) -> None:
+    if not has_permission(access_context, permission):
+        raise AccessDeniedError(f"Access denied for permission: {permission}.")
 
 
 def assert_filters_allowed(filters: dict, access_context) -> None:
