@@ -16,6 +16,7 @@ DEFAULT_REQUEST_HEADERS = {
     "X-Allowed-Project-Ids": "learning",
     "X-Allowed-Customer-Ids": "internal",
 }
+TOKEN_MODE_SKIPPED_CASE_IDS = {"Q006"}
 
 
 def _require_api_base_url():
@@ -50,6 +51,36 @@ def _apply_authorization_header(headers=None):
         request_headers["Authorization"] = authorization_header
 
     return request_headers
+
+
+def _is_token_mode():
+    return bool(_get_authorization_header())
+
+
+def _should_skip_case(case_definition, token_mode):
+    if not token_mode:
+        return False
+
+    case_id = case_definition.get("caseId")
+    return case_id in TOKEN_MODE_SKIPPED_CASE_IDS
+
+
+def _build_skipped_result(case_definition, note):
+    return {
+        "caseId": case_definition.get("caseId", "-"),
+        "type": case_definition.get("type", "-"),
+        "question": case_definition.get("question", "-"),
+        "expected": case_definition,
+        "response": {
+            "httpStatusCode": "-",
+            "body": {
+                "status": "skipped",
+            },
+        },
+        "pass": False,
+        "skipped": True,
+        "notes": note,
+    }
 
 
 def _post_json(url, payload, headers=None):
@@ -735,8 +766,10 @@ def _run_approval_execute_internal_report_case(api_base_url, case_definition, re
 
 def _write_markdown_report(api_base_url, started_at, results):
     total_cases = len(results)
+    skipped_cases = sum(1 for result in results if result.get("skipped"))
+    evaluated_cases = total_cases - skipped_cases
     passed_cases = sum(1 for result in results if result["pass"])
-    failed_cases = total_cases - passed_cases
+    failed_cases = evaluated_cases - passed_cases
 
     lines = [
         "# RAG Evaluation Report",
@@ -744,6 +777,8 @@ def _write_markdown_report(api_base_url, started_at, results):
         f"- API base URL: {api_base_url}",
         f"- timestamp: {started_at}",
         f"- total cases: {total_cases}",
+        f"- evaluated cases: {evaluated_cases}",
+        f"- skipped cases: {skipped_cases}",
         f"- passed cases: {passed_cases}",
         f"- failed cases: {failed_cases}",
         "",
@@ -759,7 +794,10 @@ def _write_markdown_report(api_base_url, started_at, results):
         sources = _format_sources_for_markdown(response_body)
         min_similarity_score = response_body.get("minSimilarityScore", "-")
         output_guardrail = _format_output_guardrail_for_markdown(response_body)
-        pass_fail = "PASS" if result["pass"] else "FAIL"
+        if result.get("skipped"):
+            pass_fail = "SKIP"
+        else:
+            pass_fail = "PASS" if result["pass"] else "FAIL"
         question = str(result["question"]).replace("|", "\\|")
         notes = str(result["notes"]).replace("|", "\\|")
         lines.append(
@@ -808,6 +846,7 @@ def _write_markdown_report(api_base_url, started_at, results):
 def main():
     api_base_url = _require_api_base_url()
     started_at = datetime.now(timezone.utc).isoformat()
+    token_mode = _is_token_mode()
 
     script_directory = Path(__file__).resolve().parent
     repository_root = script_directory.parent
@@ -828,6 +867,16 @@ def main():
     results = []
     results_by_case_id = {}
     for case_definition in questions:
+        if _should_skip_case(case_definition, token_mode):
+            skip_note = (
+                "Skipping Q006 in token mode because trusted-header spoofing is not the active auth source."
+            )
+            print(skip_note)
+            skipped_result = _build_skipped_result(case_definition, skip_note)
+            results.append(skipped_result)
+            results_by_case_id[skipped_result["caseId"]] = skipped_result
+            continue
+
         request_headers = dict(DEFAULT_REQUEST_HEADERS)
         if isinstance(case_definition.get("headers"), dict):
             request_headers.update(case_definition["headers"])
@@ -852,6 +901,7 @@ def main():
     results_payload = {
         "apiBaseUrl": api_base_url,
         "timestamp": started_at,
+        "tokenMode": token_mode,
         "documentResponse": document_response,
         "results": results,
     }
@@ -859,8 +909,12 @@ def main():
     _write_markdown_report(api_base_url, started_at, results)
 
     total_cases = len(results)
+    skipped_cases = sum(1 for result in results if result.get("skipped"))
+    evaluated_cases = total_cases - skipped_cases
     passed_cases = sum(1 for result in results if result["pass"])
-    print(f"RAG evaluation complete: {passed_cases}/{total_cases} cases passed.")
+    print(f"RAG evaluation complete: {passed_cases}/{evaluated_cases} cases passed.")
+    if skipped_cases:
+        print(f"Skipped cases: {skipped_cases}")
     print(f"JSON results: {RAW_RESULTS_PATH}")
     print(f"Markdown report: {MARKDOWN_REPORT_PATH}")
 
