@@ -406,6 +406,8 @@ Resources:
             RestApiId: !Ref ApiGateway
             Path: /incident-reports/{reportId}
             Method: get
+              Auth:
+                Authorizer: CognitoRagQueryAuthorizer
 
 Outputs:
   ApiBaseUrl:

@@ -441,7 +441,35 @@ Expected result:
 - HTTP `200`
 - execution result shows `executed` and includes `reportId`
 
-## 15. Run the Evaluation with a Token
+## 15. Test Protected Incident Report Read
+
+First create and execute an approval with a valid token so the workflow returns a real `REPORT_ID`.
+
+No-token incident report read should fail at API Gateway:
+
+```bash
+curl -i -sS \
+  -X GET "$API_BASE_URL/incident-reports/$REPORT_ID"
+```
+
+Expected result:
+
+- HTTP `401` or `403`
+
+Valid-token incident report read should return the created report record:
+
+```bash
+curl -i -sS \
+  -X GET "$API_BASE_URL/incident-reports/$REPORT_ID" \
+  -H "Authorization: Bearer $AUTH_TOKEN"
+```
+
+Expected result:
+
+- HTTP `200`
+- response body contains the created incident report record for the executed approval
+
+## 16. Run the Evaluation with a Token
 
 The evaluation script supports token-based calls through `AUTH_TOKEN` or `AUTHORIZATION_HEADER`.
 
@@ -468,16 +496,16 @@ If token mode is active after `/rag/query` protection, the current expected summ
 
 The skipped case is `Q006`, which is intentionally excluded in token mode because trusted-header spoofing is not the active auth source.
 
-## 16. Notes on Scope and Compatibility
+## 17. Notes on Scope and Compatibility
 
-- `POST /rag/query`, `POST /documents`, `POST /agent/run`, `GET /approvals/{approvalId}`, `POST /approvals/{approvalId}/decision`, and `POST /approvals/{approvalId}/execute` are protected in this phase.
+- `POST /rag/query`, `POST /documents`, `POST /agent/run`, `GET /approvals/{approvalId}`, `POST /approvals/{approvalId}/decision`, `POST /approvals/{approvalId}/execute`, and `GET /incident-reports/{reportId}` are protected in this phase.
 - The backend policy gate still validates `projectId` and `customerId` against the claims-backed `AccessContext`.
 - Trusted headers remain available for local compatibility and for routes that are still intentionally unprotected.
 - The mock authorizer-claims resolver path remains useful for local testing even after Cognito is added.
-- Incident report lookup remains intentionally unchanged in this phase.
+- Incident report business logic remains unchanged in this phase; authentication is added at API Gateway.
 - Approval business logic still validates approval state and action type after authentication.
 
-## 17. Troubleshooting
+## 18. Troubleshooting
 
 - If unauthenticated `/documents` still succeeds, verify the route is actually attached to the Cognito authorizer in the deployed template.
 - If authenticated `/documents` fails, confirm the `Authorization` header is present and the token is still valid.
@@ -487,5 +515,7 @@ The skipped case is `Q006`, which is intentionally excluded in token mode becaus
 - If authenticated `/agent/run` fails, confirm the token is valid and the request body matches a supported task shape.
 - If unauthenticated approval routes still succeed, verify the approval events are attached to the Cognito authorizer in the deployed template.
 - If approval GET, decision, or execute fails with a valid token, confirm the approval was created first and that the workflow state is valid for the requested action.
+- If unauthenticated incident report lookup still succeeds, verify the incident report GET event is attached to the Cognito authorizer in the deployed template.
+- If incident report lookup fails with a valid token, confirm approval execution succeeded first and that the `REPORT_ID` came from the execute response.
 - If custom attributes do not appear in the token, inspect the actual token claims and confirm the first token choice still matches the deployed Cognito configuration.
 - If the evaluation script fails after route protection, confirm `AUTH_TOKEN` or `AUTHORIZATION_HEADER` is exported in the same shell used to run the script.
