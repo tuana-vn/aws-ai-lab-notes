@@ -1,7 +1,7 @@
 # RAG Evaluation Report
 
-- API base URL: https://dj4qxxa454.execute-api.ap-southeast-1.amazonaws.com/v1
-- timestamp: 2026-05-22T10:42:27.915463+00:00
+- API base URL: https://mivf8v07ee.execute-api.ap-southeast-1.amazonaws.com/v1
+- timestamp: 2026-05-28T09:32:19.203849+00:00
 - total cases: 16
 - passed cases: 16
 - failed cases: 0
@@ -45,7 +45,7 @@ Min Similarity Score: 0.25
 
 Output Guardrail: action=allow, reason=valid_grounded_answer, warnings=-
 
-Answer: API Gateway helps developers create, publish, maintain, monitor, and secure APIs. It can handle routing, throttling, authorization, request validation, and integration with AWS services. It also helps protect backend services by using au...
+Answer: API Gateway helps developers create, publish, maintain, monitor, and secure APIs. It can handle routing, throttling, authorization, request validation, and integration with AWS services. It also protects backend services by using authori...
 
 ### Q002
 
@@ -225,7 +225,7 @@ Min Similarity Score: -
 
 Output Guardrail: action=allow, reason=valid_grounded_answer, warnings=-
 
-Answer: API Gateway helps developers create, publish, maintain, monitor, and secure APIs. It can handle routing, throttling, authorization, request validation, and integration with AWS services. It also protects backend services by using authori...
+Answer: Amazon API Gateway helps developers create, publish, maintain, monitor, and secure APIs. It handles routing, throttling, authorization, request validation, and integrates with AWS services. It also protects backend services by using auth...
 
 ### Q011
 
@@ -265,7 +265,7 @@ Min Similarity Score: -
 
 Output Guardrail: -
 
-Answer: Found 10 matching log event(s) for preset blocked in the last 120 minutes.
+Answer: Found 3 matching log event(s) for preset blocked in the last 120 minutes.
 
 ### Q013
 
@@ -285,7 +285,7 @@ Min Similarity Score: -
 
 Output Guardrail: -
 
-Answer: Found 10 blocked log event(s). Inspected 3 trace record(s). Common blocked reasons: prompt_injection, unsafe_data_access.
+Answer: Found 3 blocked log event(s). Inspected 3 trace record(s). Common blocked reasons: prompt_injection, unsafe_data_access.
 
 ### Q014
 

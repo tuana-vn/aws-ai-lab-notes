@@ -1,0 +1,15 @@
+version = 0.1
+
+[default.deploy.parameters]
+stack_name = "aws-ai-platform-poc-dev"
+resolve_s3 = true
+s3_prefix = "aws-ai-platform-poc-dev"
+region = "ap-southeast-1"
+confirm_changeset = true
+capabilities = "CAPABILITY_IAM"
+disable_rollback = true
+parameter_overrides = "EnvironmentName=\"dev\" ApiStageThrottleRateLimit=\"10\" ApiStageThrottleBurstLimit=\"20\""
+image_repositories = []
+
+[default.global.parameters]
+region = "ap-southeast-1"
