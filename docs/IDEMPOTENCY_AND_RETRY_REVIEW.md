@@ -144,6 +144,8 @@ The safest future rule is:
 
 `POST /documents` already uses `documentId`, but the current flow still performs destructive replacement without a versioned or staged write model.
 
+Phase 10G is the follow-up design slice for this route. It defines the target staged-replacement and version-aware design without claiming that those controls exist in the current runtime.
+
 That means the route likely needs at least one of these later:
 
 - explicit document versioning

@@ -130,6 +130,8 @@ The platform already has several partial-failure shapes that matter more than si
 
 Reliability hardening must address these ambiguous states explicitly.
 
+Phase 10G is the document-ingestion follow-up design for this area. It focuses on safer replacement so old chunks remain available until a new chunk set is fully ready.
+
 ### Deployment Rollback
 
 The repository uses SAM and CloudFormation, but does not yet document a production rollback workflow.
@@ -193,7 +195,10 @@ Current implementation means:
 
 - synchronous API Gateway to Lambda request paths dominate the platform
 - trace, document, approval, and incident-report writes happen inline in request handlers
-- no explicit idempotency-key or replay-protection model is documented
+- no platform-wide idempotency-key model is implemented
+- replay protection is currently partial and route-specific
+- Phase 10F added replay-safe behavior for already-executed approvals with a stored report reference
+- Phase 10G documents the target safer replacement design for document ingestion, but it is not implemented yet
 - no deployment rollback checklist or multi-environment promotion model is documented
 
 ## Future Roadmap Boundary
