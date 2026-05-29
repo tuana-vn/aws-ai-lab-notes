@@ -12,15 +12,26 @@ fields @timestamp, @message
 | stats count(*) as count by status
 | sort count desc
 """.strip(),
+    "policy-denied": """
+fields @timestamp, request_id, requestId, path, user_id, userId, status, eventType, @message
+| filter status = "denied"
+    or eventType = "policy_denied"
+    or @message like /denied|policy/
+| sort @timestamp desc
+| limit 20
+""".strip(),
     "blocked": """
-fields @timestamp, request_id, status, guardrail_action, guardrail_reason, guardrail_matched_rule
-| filter status = \"blocked\"
+fields @timestamp, request_id, requestId, status, eventType, guardrail_action, guardrailAction, guardrail_reason, guardrailReason, guardrail_matched_rule, guardrailMatchedRule
+| filter status = "blocked"
+    or eventType = "input_guardrail_blocked"
+    or guardrail_action = "block"
+    or guardrailAction = "block"
 | sort @timestamp desc
 | limit 20
 """.strip(),
     "no-source": """
-fields @timestamp, request_id, status, question, source_count, eligible_chunk_count
-| filter status = \"no_source\"
+fields @timestamp, request_id, requestId, status, eventType, question, source_count, sourceCount, eligible_chunk_count, eligibleChunkCount
+| filter status = "no_source" or eventType = "rag_no_source"
 | sort @timestamp desc
 | limit 20
 """.strip(),
@@ -31,16 +42,66 @@ fields @timestamp, @message
 | limit 20
 """.strip(),
     "latency": """
-fields @timestamp, status, latency_ms
-| filter ispresent(latency_ms)
-| stats avg(latency_ms) as avg_latency_ms, max(latency_ms) as max_latency_ms, count(*) as count by status
-| sort avg_latency_ms desc
+fields @timestamp, path, status, latency_ms, latencyMs
+| filter ispresent(latency_ms) or ispresent(latencyMs)
+| stats avg(latency_ms) as avg_latency_ms, avg(latencyMs) as avg_latencyMs, max(latency_ms) as max_latency_ms, max(latencyMs) as max_latencyMs, count(*) as count by path, status
+| sort count desc
 """.strip(),
     "guardrails": """
-fields @timestamp, guardrail_action, guardrail_reason, guardrail_matched_rule
-| filter ispresent(guardrail_action)
-| stats count(*) as count by guardrail_action, guardrail_reason, guardrail_matched_rule
+fields @timestamp, guardrail_action, guardrailAction, guardrail_reason, guardrailReason, guardrail_matched_rule, guardrailMatchedRule, eventType
+| filter ispresent(guardrail_action) or ispresent(guardrailAction) or eventType = "input_guardrail_blocked"
+| stats count(*) as count by guardrail_action, guardrailAction, guardrail_reason, guardrailReason, guardrail_matched_rule, guardrailMatchedRule
 | sort count desc
+""".strip(),
+    "approval": """
+fields @timestamp, approval_id, approvalId, decision, execution_status, executionStatus, user_id, userId, status, eventType, @message
+| filter eventType = "approval_decided"
+    or ispresent(approval_id)
+    or ispresent(approvalId)
+    or @message like /approval|decision|approved|rejected/
+| sort @timestamp desc
+| limit 20
+""".strip(),
+    "executions": """
+fields @timestamp, approval_id, approvalId, report_id, reportId, execution_status, executionStatus, action_type, actionType, user_id, userId, status, eventType, @message
+| filter eventType = "approval_execute_requested"
+    or eventType = "approval_execute_denied"
+    or eventType = "approval_executed"
+    or ispresent(report_id)
+    or ispresent(reportId)
+    or @message like /execute|executed|reportId|report_id|incident report/
+| sort @timestamp desc
+| limit 20
+""".strip(),
+    "agent-tools": """
+fields @timestamp, request_id, requestId, task, tool_calls, toolCalls, status, eventType, @message
+| filter ispresent(tool_calls)
+    or ispresent(toolCalls)
+    or eventType = "agent_tool_called"
+    or eventType = "agent_tool_failed"
+    or @message like /tool_calls|toolCalls|trace_lookup|log_search|rag_query/
+| sort @timestamp desc
+| limit 20
+""".strip(),
+    "security-audit": """
+fields @timestamp, request_id, requestId, path, status, eventType, guardrail_action, guardrailAction, guardrail_reason, guardrailReason, user_id, userId, approval_id, approvalId, report_id, reportId, @message
+| filter status = "blocked"
+    or status = "denied"
+    or status = "failed"
+    or status = "no_source"
+    or eventType = "policy_denied"
+    or eventType = "input_guardrail_blocked"
+    or eventType = "rag_no_source"
+    or eventType = "approval_decided"
+    or eventType = "approval_execute_denied"
+    or eventType = "approval_executed"
+    or eventType = "incident_report_created"
+    or eventType = "error"
+    or ispresent(guardrail_action)
+    or ispresent(guardrailAction)
+    or @message like /guardrail|denied|approval|execute|incident report/
+| sort @timestamp desc
+| limit 50
 """.strip(),
     "raw": """
 fields @timestamp, @message
