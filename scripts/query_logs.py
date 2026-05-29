@@ -73,6 +73,17 @@ fields @timestamp, approval_id, approvalId, decision, execution_status, executio
 | sort @timestamp desc
 | limit 20
 """.strip(),
+    "document-ingestion": """
+fields @timestamp, request_id, requestId, path, document_id, documentId, documentVersion, contentHash, chunkCount, replacementMode, ingestionMode, status, @message
+| filter @message like /document indexed/
+    or ispresent(documentVersion)
+    or ispresent(contentHash)
+    or ispresent(chunkCount)
+    or ispresent(replacementMode)
+    or ispresent(ingestionMode)
+| sort @timestamp desc
+| limit 50
+""".strip(),
     "executions": """
 fields @timestamp, approval_id, approvalId, report_id, reportId, execution_status, executionStatus, action_type, actionType, user_id, userId, status, eventType, @message
 | filter eventType = "approval_execute_requested"

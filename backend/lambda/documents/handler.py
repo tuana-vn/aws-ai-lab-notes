@@ -1,7 +1,9 @@
 import json
+import hashlib
 import logging
 import os
 from datetime import datetime, timezone
+from uuid import uuid4
 
 from common.chunking import chunk_document
 from common.document_repository import DocumentRepository
@@ -15,6 +17,7 @@ EMBEDDING_MODEL_ID = os.environ.get("EMBEDDING_MODEL_ID", "cohere.embed-english-
 DEFAULT_PROJECT_ID = "default"
 DEFAULT_CUSTOMER_ID = "default"
 DEFAULT_DOCUMENT_TYPE = "general"
+DIRECT_REPLACEMENT_MODE = "direct_replace"
 
 
 def _parse_body(event):
@@ -38,6 +41,7 @@ def _parse_body(event):
     project_id = body.get("projectId", DEFAULT_PROJECT_ID)
     customer_id = body.get("customerId", DEFAULT_CUSTOMER_ID)
     document_type = body.get("documentType", DEFAULT_DOCUMENT_TYPE)
+    version = body.get("version")
 
     if not isinstance(document_id, str) or not document_id.strip():
         raise ValueError("Field 'documentId' is required and must be a non-empty string.")
@@ -51,6 +55,8 @@ def _parse_body(event):
         raise ValueError("Field 'customerId' must be a non-empty string when provided.")
     if not isinstance(document_type, str) or not document_type.strip():
         raise ValueError("Field 'documentType' must be a non-empty string when provided.")
+    if version is not None and (not isinstance(version, str) or not version.strip()):
+        raise ValueError("Field 'version' must be a non-empty string when provided.")
 
     return {
         "documentId": document_id.strip(),
@@ -59,10 +65,27 @@ def _parse_body(event):
         "customerId": customer_id.strip(),
         "documentType": document_type.strip(),
         "content": content.strip(),
+        "version": version.strip() if isinstance(version, str) else None,
     }
 
 
+def _normalize_content_for_hash(content: str) -> str:
+    return content.replace("\r\n", "\n").replace("\r", "\n").strip()
+
+
+def _compute_content_hash(content: str) -> str:
+    normalized_content = _normalize_content_for_hash(content)
+    return hashlib.sha256(normalized_content.encode("utf-8")).hexdigest()
+
+
+def _resolve_document_version(version: str | None, content_hash: str) -> str:
+    if version:
+        return version
+    return f"content-{content_hash[:16]}"
+
+
 def lambda_handler(event, context):
+    request_id = str(uuid4())
     path = event.get("rawPath") or event.get("path") or "/documents"
 
     try:
@@ -72,6 +95,7 @@ def lambda_handler(event, context):
             LOGGER,
             logging.WARNING,
             "invalid document request",
+            request_id=request_id,
             path=path,
             error=str(exc),
         )
@@ -79,7 +103,10 @@ def lambda_handler(event, context):
 
     try:
         chunks = chunk_document(body["content"])
-        created_at = datetime.now(timezone.utc).isoformat()
+        ingestion_timestamp = datetime.now(timezone.utc).isoformat()
+        content_hash = _compute_content_hash(body["content"])
+        document_version = _resolve_document_version(body.get("version"), content_hash)
+        chunk_count = len(chunks)
         chunk_records = []
         repository = DocumentRepository(DOCUMENT_CHUNKS_TABLE_NAME)
         embedding_client = EmbeddingClient(EMBEDDING_MODEL_ID)
@@ -97,7 +124,12 @@ def lambda_handler(event, context):
                     "project_id": body["projectId"],
                     "customer_id": body["customerId"],
                     "document_type": body["documentType"],
-                    "created_at": created_at,
+                    "created_at": ingestion_timestamp,
+                    "document_version": document_version,
+                    "content_hash": content_hash,
+                    "ingestion_timestamp": ingestion_timestamp,
+                    "chunk_count": chunk_count,
+                    "replacement_mode": DIRECT_REPLACEMENT_MODE,
                 }
             )
 
@@ -108,9 +140,17 @@ def lambda_handler(event, context):
             LOGGER,
             logging.INFO,
             "document indexed",
+            request_id=request_id,
             path=path,
             document_id=body["documentId"],
-            chunk_count=len(chunk_records),
+            documentVersion=document_version,
+            contentHash=content_hash,
+            chunkCount=chunk_count,
+            replacementMode=DIRECT_REPLACEMENT_MODE,
+            projectId=body["projectId"],
+            customerId=body["customerId"],
+            documentType=body["documentType"],
+            chunk_count=chunk_count,
             embedding_model_id=EMBEDDING_MODEL_ID,
             status="indexed",
         )
@@ -120,7 +160,7 @@ def lambda_handler(event, context):
             {
                 "documentId": body["documentId"],
                 "title": body["title"],
-                "chunkCount": len(chunk_records),
+                "chunkCount": chunk_count,
                 "status": "indexed",
             },
         )
@@ -129,6 +169,7 @@ def lambda_handler(event, context):
             LOGGER,
             logging.ERROR,
             "document embedding invocation failed",
+            request_id=request_id,
             path=path,
             document_id=body["documentId"],
             embedding_model_id=EMBEDDING_MODEL_ID,
@@ -140,6 +181,7 @@ def lambda_handler(event, context):
         LOGGER.exception(
             "unexpected document indexing failure",
             extra={
+                "request_id": request_id,
                 "extra_fields": {
                     "path": path,
                     "document_id": body["documentId"],

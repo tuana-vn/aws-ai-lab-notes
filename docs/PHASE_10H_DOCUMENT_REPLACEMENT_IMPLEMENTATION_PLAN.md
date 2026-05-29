@@ -138,7 +138,9 @@ Phase 10H is acceptable when:
 
 ## Current Implementation Boundary
 
-Current implementation still uses delete-then-save replacement in `/documents` and unversioned chunk retrieval in the mini RAG baseline.
+Current implementation still uses delete-then-save replacement in `/documents` and current chunk retrieval in the mini RAG baseline.
+
+Phase 10I adds version-related metadata fields to ingestion records and logs, but it does not implement staged replacement, active version pointers, or cutover logic.
 
 ## Future Implementation Boundary
 

@@ -71,7 +71,9 @@ Capture evidence for:
 
 ## Current Implementation Boundary
 
-Current implementation does not include version-aware replacement tests because the runtime is still unversioned.
+Current implementation does not include version-aware replacement tests yet.
+
+Phase 10I adds metadata-foundation behavior that future tests can assert without implementing staged replacement.
 
 ## Future Implementation Boundary
 

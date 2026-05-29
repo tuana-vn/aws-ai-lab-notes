@@ -125,7 +125,7 @@ The future design should support:
 
 ## Current Implementation Boundary
 
-Current implementation is still the unversioned chunk model in `DocumentChunksTable`.
+Current implementation is still the current chunk model in `DocumentChunksTable`, but Phase 10I adds low-risk version metadata fields to chunk records as a foundation step.
 
 ## Future Implementation Boundary
 
