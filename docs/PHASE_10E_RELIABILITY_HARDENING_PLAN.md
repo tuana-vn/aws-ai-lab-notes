@@ -101,7 +101,7 @@ Approval execution currently creates an incident report first and marks the appr
 
 That execution order matters. If incident report creation succeeds but the approval update or response path fails, a retry can create a second incident report for the same approval because the approval may still look executable.
 
-This is the highest-value replay-safety gap in the current repository.
+This was the highest-value replay-safety gap in the current repository. Phase 10F is the first implementation slice for this area: it makes execute replay-safe when the approval is already marked `executed` with a stored report reference. The narrower partial-failure case still remains.
 
 ### Incident Report Creation Replay Safety
 

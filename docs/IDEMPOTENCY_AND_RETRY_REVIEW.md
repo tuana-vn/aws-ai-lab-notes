@@ -103,11 +103,11 @@ In this shape, client retries after timeouts or network ambiguity are realistic.
 
 ### POST /approvals/{approvalId}/execute
 
-- Current behavior: validates permission and status, creates an incident report with a new generated `report_id`, then marks the approval executed.
+- Current behavior: validates permission, returns the existing `reportId` when the approval is already marked `executed` with a stored report reference, and otherwise creates an incident report with a new generated `report_id` before marking the approval executed.
 - Side effects: creates an incident report record, updates the approval record, and writes audit events.
-- Retry risk: high. If incident report creation succeeds but approval update or response delivery fails, a retry can create a duplicate incident report because the approval may still appear executable.
-- Idempotency expectation: execution must be safe to repeat without creating duplicate incident reports.
-- Recommended hardening: define execution idempotency around the approval ID or a dedicated execution key, and ensure repeat execution returns the existing result instead of creating a second report.
+- Retry risk: Phase 10F removes the already-executed replay case when `execution_status=executed` and a stored report reference exists. The remaining risk is the narrower partial-failure case where incident report creation succeeds but approval state is not updated with the report reference.
+- Idempotency expectation: execution should return the existing incident report when the approval is already marked executed with a stored report reference.
+- Recommended hardening: keep the Phase 10F replay behavior and address the remaining partial-failure gap later with a transaction, deterministic report ID, or conditional write strategy.
 - Priority: P0.
 
 ### GET /incident-reports/{reportId}
@@ -131,7 +131,7 @@ Current execution order is:
 2. mark approval executed
 3. return success
 
-That order leaves a replay window if step 1 succeeds and step 2 or step 3 fails.
+Phase 10F closes the broader replay case where the approval is already marked `executed` with a stored report reference. The remaining replay window is narrower: step 1 can still succeed before step 2 stores the report reference on the approval.
 
 ### Approval Decision Should Be Safe If Repeated With The Same Decision
 
@@ -161,7 +161,7 @@ Future hardening should decide route by route:
 
 ## Current Implementation Boundary
 
-Current implementation means idempotency is partial and route-specific, not formalized platform-wide.
+Current implementation means idempotency is still partial and route-specific, but approval execute now has replay-safe behavior for already-executed approvals with a stored report reference.
 
 ## Future Roadmap Boundary
 

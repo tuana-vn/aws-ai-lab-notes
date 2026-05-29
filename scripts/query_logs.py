@@ -77,6 +77,7 @@ fields @timestamp, approval_id, approvalId, decision, execution_status, executio
 fields @timestamp, approval_id, approvalId, report_id, reportId, execution_status, executionStatus, action_type, actionType, user_id, userId, status, eventType, @message
 | filter eventType = "approval_execute_requested"
     or eventType = "approval_execute_denied"
+    or eventType = "approval_execute_idempotent_replay"
     or eventType = "approval_executed"
     or ispresent(report_id)
     or ispresent(reportId)
@@ -106,6 +107,7 @@ fields @timestamp, request_id, requestId, path, status, eventType, guardrail_act
     or eventType = "approval_created"
     or eventType = "approval_decided"
     or eventType = "approval_execute_denied"
+    or eventType = "approval_execute_idempotent_replay"
     or eventType = "approval_executed"
     or eventType = "incident_report_created"
     or eventType = "error"

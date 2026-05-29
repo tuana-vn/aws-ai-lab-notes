@@ -76,6 +76,20 @@ def _log_approval_audit_event(
     )
 
 
+def _get_execution_report_id(approval):
+    execution_result = approval.get("execution_result") or {}
+    if isinstance(execution_result, dict):
+        report_id = execution_result.get("reportId")
+        if isinstance(report_id, str) and report_id.strip():
+            return report_id.strip()
+
+    report_id = approval.get("report_id")
+    if isinstance(report_id, str) and report_id.strip():
+        return report_id.strip()
+
+    return None
+
+
 def _parse_decision_body(event):
     raw_body = event.get("body")
     if raw_body is None:
@@ -259,6 +273,35 @@ def lambda_handler(event, context):
             executionStatus=approval.get("execution_status"),
             actionType=(approval.get("proposed_action") or {}).get("actionType"),
         )
+
+        existing_report_id = _get_execution_report_id(approval)
+        if (
+            approval.get("status") == "approved"
+            and approval.get("execution_status") == "executed"
+            and existing_report_id
+        ):
+            _log_approval_audit_event(
+                "approval_execute_idempotent_replay",
+                "Approval execution replay detected; returning existing incident report record.",
+                request_id,
+                approval_id,
+                path,
+                user_id=access_context.user_id,
+                reportId=existing_report_id,
+                status="executed",
+                executionStatus="executed",
+                actionType="create_incident_report",
+            )
+            return json_response(
+                200,
+                {
+                    "approvalId": approval_id,
+                    "reportId": existing_report_id,
+                    "status": "executed",
+                    "executionStatus": "executed",
+                    "message": "Approved action was already executed; returning existing incident report record.",
+                },
+            )
 
         if approval.get("status") != "approved":
             _log_approval_audit_event(
