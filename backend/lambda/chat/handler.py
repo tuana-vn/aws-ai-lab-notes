@@ -57,7 +57,9 @@ def lambda_handler(event, context):
     started_at = perf_counter()
 
     try:
-        answer = BedrockClient().converse(BEDROCK_MODEL_ID, message)
+        bedrock_result = BedrockClient().converse(BEDROCK_MODEL_ID, message)
+        answer = bedrock_result["answer"]
+        usage = bedrock_result.get("usage") or {}
         latency_ms = int((perf_counter() - started_at) * 1000)
 
         trace_record = {
@@ -70,6 +72,7 @@ def lambda_handler(event, context):
             "status": "completed",
             "latency_ms": latency_ms,
         }
+        trace_record.update(usage)
         TraceRepository(TRACE_TABLE_NAME).save_trace(trace_record)
 
         log_json(
@@ -79,8 +82,10 @@ def lambda_handler(event, context):
             request_id=request_id,
             path=path,
             model_id=BEDROCK_MODEL_ID,
+            modelId=BEDROCK_MODEL_ID,
             latency_ms=latency_ms,
             status="completed",
+            **usage,
         )
 
         return json_response(

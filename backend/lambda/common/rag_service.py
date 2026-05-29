@@ -158,8 +158,9 @@ def _build_trace_record(
     sources,
     status,
     latency_ms,
+    usage=None,
 ):
-    return {
+    trace_record = {
         "request_id": request_id,
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "path": path,
@@ -183,6 +184,9 @@ def _build_trace_record(
         "status": status,
         "latency_ms": latency_ms,
     }
+    if isinstance(usage, dict):
+        trace_record.update(usage)
+    return trace_record
 
 
 def _save_trace(trace_record, save_trace):
@@ -337,7 +341,9 @@ def run_rag_query(question: str, filters: dict, event: dict, request_id: str, pa
             }
 
         prompt = _build_grounded_prompt(question, top_chunks)
-        answer = BedrockClient().converse(BEDROCK_MODEL_ID, prompt)
+        bedrock_result = BedrockClient().converse(BEDROCK_MODEL_ID, prompt)
+        answer = bedrock_result["answer"]
+        usage = bedrock_result.get("usage") or {}
         output_guardrail_result = evaluate_output_guardrail(answer, sources)
         latency_ms = int((perf_counter() - started_at) * 1000)
 
@@ -354,6 +360,7 @@ def run_rag_query(question: str, filters: dict, event: dict, request_id: str, pa
             sources,
             "completed",
             latency_ms,
+            usage,
         )
         _save_trace(trace_record, save_trace)
 
@@ -365,6 +372,7 @@ def run_rag_query(question: str, filters: dict, event: dict, request_id: str, pa
             path=path,
             user_id=user_id,
             model_id=BEDROCK_MODEL_ID,
+            modelId=BEDROCK_MODEL_ID,
             embedding_model_id=EMBEDDING_MODEL_ID,
             retrieval_mode=RETRIEVAL_MODE,
             min_similarity_score=MIN_SIMILARITY_SCORE,
@@ -379,6 +387,7 @@ def run_rag_query(question: str, filters: dict, event: dict, request_id: str, pa
             latency_ms=latency_ms,
             source_count=len(sources),
             status="completed",
+            **usage,
         )
         return {
             "statusCode": 200,

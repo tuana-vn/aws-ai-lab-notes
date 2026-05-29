@@ -53,6 +53,17 @@ fields @timestamp, guardrail_action, guardrailAction, guardrail_reason, guardrai
 | stats count(*) as count by guardrail_action, guardrailAction, guardrail_reason, guardrailReason, guardrail_matched_rule, guardrailMatchedRule
 | sort count desc
 """.strip(),
+    "cost-tokens": """
+fields @timestamp, request_id, requestId, path, routeCategory, operationType, modelId, inputTokens, outputTokens, totalTokens, bedrockLatencyMs, status, @message
+| filter ispresent(inputTokens)
+    or ispresent(outputTokens)
+    or ispresent(totalTokens)
+    or ispresent(bedrockLatencyMs)
+    or @message like /token/
+    or @message like /Bedrock usage/
+| sort @timestamp desc
+| limit 50
+""".strip(),
     "approval": """
 fields @timestamp, approval_id, approvalId, decision, execution_status, executionStatus, user_id, userId, status, eventType, @message
 | filter eventType = "approval_decided"
