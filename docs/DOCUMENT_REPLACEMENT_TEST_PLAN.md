@@ -71,9 +71,9 @@ Capture evidence for:
 
 ## Current Implementation Boundary
 
-Current implementation does not include version-aware replacement tests yet.
+Current implementation now includes focused tests for staged chunk write behavior and retrieval filtering.
 
-Phase 10I adds metadata-foundation behavior that future tests can assert without implementing staged replacement.
+Phase 10J covers the small staged-write slice, but it does not yet cover a separate active version pointer or background cleanup lifecycle.
 
 ## Future Implementation Boundary
 

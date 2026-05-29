@@ -32,6 +32,7 @@ NO_MODEL_ANSWER_OUTPUT_GUARDRAIL = {
     "reason": "no_model_answer",
     "warnings": [],
 }
+ACTIVE_VERSION_STATUSES = {None, "active"}
 
 
 def normalize_filters(raw_filters):
@@ -71,6 +72,14 @@ def _filter_chunks_by_metadata(chunks, filters):
             eligible_chunks.append(chunk)
 
     return eligible_chunks
+
+
+def _resolve_version_status(chunk):
+    return chunk.get("version_status", chunk.get("versionStatus"))
+
+
+def _filter_retrievable_chunks(chunks):
+    return [chunk for chunk in chunks if _resolve_version_status(chunk) in ACTIVE_VERSION_STATUSES]
 
 
 def _build_grounded_prompt(question, chunks):
@@ -273,7 +282,7 @@ def run_rag_query(question: str, filters: dict, event: dict, request_id: str, pa
         assert_filters_allowed(filters, access_context)
 
         repository = DocumentRepository(DOCUMENT_CHUNKS_TABLE_NAME)
-        chunks = repository.list_chunks()
+        chunks = _filter_retrievable_chunks(repository.list_chunks())
         eligible_chunks = _filter_chunks_by_metadata(chunks, filters)
         eligible_chunk_count = len(eligible_chunks)
         question_embedding = EmbeddingClient(EMBEDDING_MODEL_ID).embed_query(question)

@@ -17,7 +17,10 @@ EMBEDDING_MODEL_ID = os.environ.get("EMBEDDING_MODEL_ID", "cohere.embed-english-
 DEFAULT_PROJECT_ID = "default"
 DEFAULT_CUSTOMER_ID = "default"
 DEFAULT_DOCUMENT_TYPE = "general"
-DIRECT_REPLACEMENT_MODE = "direct_replace"
+STAGED_REPLACEMENT_MODE = "staged_replace"
+VERSION_STATUS_STAGED = "staged"
+VERSION_STATUS_ACTIVE = "active"
+INDEXED_STATUS = "indexed"
 
 
 def _parse_body(event):
@@ -84,6 +87,95 @@ def _resolve_document_version(version: str | None, content_hash: str) -> str:
     return f"content-{content_hash[:16]}"
 
 
+def _resolve_version_status(chunk: dict[str, object]) -> str | None:
+    version_status = chunk.get("version_status")
+    if isinstance(version_status, str):
+        return version_status
+    version_status = chunk.get("versionStatus")
+    if isinstance(version_status, str):
+        return version_status
+    return None
+
+
+def _is_retrievable_chunk(chunk: dict[str, object]) -> bool:
+    return _resolve_version_status(chunk) in {None, VERSION_STATUS_ACTIVE}
+
+
+def _local_chunk_id(chunk_index: int) -> str:
+    return f"chunk-{chunk_index + 1:04d}"
+
+
+def _stored_chunk_id(document_version: str, chunk_index: int) -> str:
+    return f"{document_version}#{_local_chunk_id(chunk_index)}"
+
+
+def _find_matching_active_version(
+    existing_chunks: list[dict[str, object]],
+    document_version: str,
+    content_hash: str,
+    chunk_count: int,
+) -> list[dict[str, object]]:
+    matching_chunks = [
+        chunk
+        for chunk in existing_chunks
+        if _is_retrievable_chunk(chunk)
+        and chunk.get("document_version") == document_version
+        and chunk.get("content_hash") == content_hash
+    ]
+    if len(matching_chunks) != chunk_count:
+        return []
+    return matching_chunks
+
+
+def _has_conflicting_active_version(existing_chunks: list[dict[str, object]], document_version: str) -> bool:
+    return any(
+        _is_retrievable_chunk(chunk) and chunk.get("document_version") == document_version
+        for chunk in existing_chunks
+    )
+
+
+def _indexed_response(body: dict[str, str | None], chunk_count: int):
+    return json_response(
+        200,
+        {
+            "documentId": body["documentId"],
+            "title": body["title"],
+            "chunkCount": chunk_count,
+            "status": INDEXED_STATUS,
+        },
+    )
+
+
+def _build_chunk_record(
+    body: dict[str, str | None],
+    chunk_index: int,
+    chunk_content: str,
+    embedding: list[float],
+    ingestion_timestamp: str,
+    document_version: str,
+    content_hash: str,
+    chunk_count: int,
+) -> dict[str, object]:
+    return {
+        "document_id": body["documentId"],
+        "chunk_id": _stored_chunk_id(document_version, chunk_index),
+        "title": body["title"],
+        "chunk_index": chunk_index,
+        "content": chunk_content,
+        "embedding": embedding,
+        "project_id": body["projectId"],
+        "customer_id": body["customerId"],
+        "document_type": body["documentType"],
+        "created_at": ingestion_timestamp,
+        "document_version": document_version,
+        "content_hash": content_hash,
+        "ingestion_timestamp": ingestion_timestamp,
+        "chunk_count": chunk_count,
+        "replacement_mode": STAGED_REPLACEMENT_MODE,
+        "version_status": VERSION_STATUS_STAGED,
+    }
+
+
 def lambda_handler(event, context):
     request_id = str(uuid4())
     path = event.get("rawPath") or event.get("path") or "/documents"
@@ -109,32 +201,104 @@ def lambda_handler(event, context):
         chunk_count = len(chunks)
         chunk_records = []
         repository = DocumentRepository(DOCUMENT_CHUNKS_TABLE_NAME)
+        existing_chunks = repository.list_chunks_by_document_id(body["documentId"])
+
+        if _find_matching_active_version(existing_chunks, document_version, content_hash, chunk_count):
+            log_json(
+                LOGGER,
+                logging.INFO,
+                "document ingestion idempotent replay",
+                request_id=request_id,
+                path=path,
+                document_id=body["documentId"],
+                documentVersion=document_version,
+                contentHash=content_hash,
+                chunkCount=chunk_count,
+                replacementMode=STAGED_REPLACEMENT_MODE,
+                versionStatus=VERSION_STATUS_ACTIVE,
+                projectId=body["projectId"],
+                customerId=body["customerId"],
+                documentType=body["documentType"],
+                replay=True,
+                status=INDEXED_STATUS,
+            )
+            return _indexed_response(body, chunk_count)
+
+        if _has_conflicting_active_version(existing_chunks, document_version):
+            log_json(
+                LOGGER,
+                logging.WARNING,
+                "document version conflict",
+                request_id=request_id,
+                path=path,
+                document_id=body["documentId"],
+                documentVersion=document_version,
+                contentHash=content_hash,
+                chunkCount=chunk_count,
+                replacementMode=STAGED_REPLACEMENT_MODE,
+                status="conflict",
+            )
+            return json_response(
+                409,
+                {"message": "An active document version with the same version already exists for this document."},
+            )
+
         embedding_client = EmbeddingClient(EMBEDDING_MODEL_ID)
 
         for chunk_index, chunk_content in enumerate(chunks):
             embedding = embedding_client.embed_document(chunk_content)
             chunk_records.append(
-                {
-                    "document_id": body["documentId"],
-                    "chunk_id": f"chunk-{chunk_index + 1:04d}",
-                    "title": body["title"],
-                    "chunk_index": chunk_index,
-                    "content": chunk_content,
-                    "embedding": embedding,
-                    "project_id": body["projectId"],
-                    "customer_id": body["customerId"],
-                    "document_type": body["documentType"],
-                    "created_at": ingestion_timestamp,
-                    "document_version": document_version,
-                    "content_hash": content_hash,
-                    "ingestion_timestamp": ingestion_timestamp,
-                    "chunk_count": chunk_count,
-                    "replacement_mode": DIRECT_REPLACEMENT_MODE,
-                }
+                _build_chunk_record(
+                    body,
+                    chunk_index,
+                    chunk_content,
+                    embedding,
+                    ingestion_timestamp,
+                    document_version,
+                    content_hash,
+                    chunk_count,
+                )
             )
 
-        repository.delete_chunks_by_document_id(body["documentId"])
         repository.save_chunks(chunk_records)
+        staged_chunk_count = repository.count_chunks_by_document_version(
+            body["documentId"],
+            document_version,
+        )
+
+        if staged_chunk_count != chunk_count:
+            repository.mark_chunks_failed_by_document_version(body["documentId"], document_version)
+            raise RuntimeError("Staged chunk count validation failed.")
+
+        try:
+            repository.mark_chunks_active_by_document_version(body["documentId"], document_version)
+        except Exception:
+            repository.mark_chunks_failed_by_document_version(body["documentId"], document_version)
+            raise
+
+        previous_version_obsolete_failed = False
+        try:
+            repository.mark_chunks_obsolete_by_document_id(
+                body["documentId"],
+                except_document_version=document_version,
+            )
+        except Exception:
+            previous_version_obsolete_failed = True
+            log_json(
+                LOGGER,
+                logging.WARNING,
+                "document indexed but previous chunks still visible",
+                request_id=request_id,
+                path=path,
+                document_id=body["documentId"],
+                documentVersion=document_version,
+                contentHash=content_hash,
+                chunkCount=chunk_count,
+                stagedChunkCount=staged_chunk_count,
+                replacementMode=STAGED_REPLACEMENT_MODE,
+                versionStatus=VERSION_STATUS_ACTIVE,
+                status=INDEXED_STATUS,
+            )
 
         log_json(
             LOGGER,
@@ -146,24 +310,19 @@ def lambda_handler(event, context):
             documentVersion=document_version,
             contentHash=content_hash,
             chunkCount=chunk_count,
-            replacementMode=DIRECT_REPLACEMENT_MODE,
+            stagedChunkCount=staged_chunk_count,
+            replacementMode=STAGED_REPLACEMENT_MODE,
+            versionStatus=VERSION_STATUS_ACTIVE,
             projectId=body["projectId"],
             customerId=body["customerId"],
             documentType=body["documentType"],
             chunk_count=chunk_count,
             embedding_model_id=EMBEDDING_MODEL_ID,
-            status="indexed",
+            previousVersionObsoleteFailed=previous_version_obsolete_failed,
+            status=INDEXED_STATUS,
         )
 
-        return json_response(
-            200,
-            {
-                "documentId": body["documentId"],
-                "title": body["title"],
-                "chunkCount": chunk_count,
-                "status": "indexed",
-            },
-        )
+        return _indexed_response(body, chunk_count)
     except EmbeddingInvocationError as exc:
         log_json(
             LOGGER,

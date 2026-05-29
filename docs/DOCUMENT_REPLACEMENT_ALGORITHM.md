@@ -6,9 +6,9 @@ This document describes the current and target algorithms for document replaceme
 
 The pseudocode is algorithm-level only. It does not change runtime code.
 
-## Current Delete-then-save Algorithm
+## Previous Delete-then-save Algorithm
 
-Current behavior is effectively:
+Behavior before Phase 10J was effectively:
 
 ```python
 def replace_document(document_request):
@@ -25,7 +25,63 @@ def replace_document(document_request):
     return indexed_response(chunk_count=len(chunk_records))
 ```
 
-This is easy to follow, but not safe for production replacement because old data is removed before the new set is fully safe.
+This was easy to follow, but not safe for production replacement because old data was removed before the new set was fully safe.
+
+## Current Staged Write Algorithm
+
+Current runtime behavior after Phase 10J is:
+
+```python
+def replace_document_with_staging(document_request):
+    validate(document_request)
+    chunks = chunk_document(document_request.content)
+    staged_chunks = []
+
+    for chunk in chunks:
+        embedding = embed(chunk)
+        staged_chunks.append(
+            build_chunk_record(
+                chunk_id=f"{staged_version}#chunk-0001",
+                version_status="staged",
+                chunk=chunk,
+                embedding=embedding,
+            )
+        )
+
+    save_chunks(staged_chunks)
+    staged_chunk_count = count_chunks_by_document_version(document_request.document_id, staged_version)
+    if staged_chunk_count != len(staged_chunks):
+        mark_chunks_failed(staged_version)
+        fail_request()
+
+    try:
+        mark_chunks_active(staged_version)
+    except Exception:
+        mark_chunks_failed(staged_version)
+        raise
+
+    mark_previous_chunks_obsolete(document_request.document_id, except_document_version=staged_version)
+
+    return indexed_response(chunk_count=len(staged_chunks))
+```
+
+Current retrieval behavior after Phase 10J is:
+
+```python
+def list_retrievable_chunks(all_chunks):
+    return [
+        chunk
+        for chunk in all_chunks
+        if chunk.version_status is None or chunk.version_status == "active"
+    ]
+```
+
+This is safer than blind delete-then-save because new chunks are hidden while staged, staged writes do not overwrite older chunk keys, and old chunks are not hidden before the new version becomes active.
+
+Current remaining limitation:
+
+- if marking the new version active succeeds but marking older chunks obsolete fails, retrieval may temporarily see both old and new active content until repair occurs
+- a separate active version pointer or transactional cutover would handle that case more cleanly in a future phase
 
 ## Target Staged Replacement Algorithm
 
@@ -180,8 +236,8 @@ Goal:
 
 ## Current Implementation Boundary
 
-Current implementation remains the delete-then-save algorithm.
+Current implementation now includes staged chunk writes plus active-or-legacy retrieval filtering within the existing chunk table.
 
 ## Future Implementation Boundary
 
-Future implementation may add staged writes, conditional cutover, replay handling, version-aware retrieval, and delayed cleanup.
+Future implementation may add a separate active version pointer, stronger conditional cutover, replay handling, version-aware retrieval by pointer, and delayed cleanup.

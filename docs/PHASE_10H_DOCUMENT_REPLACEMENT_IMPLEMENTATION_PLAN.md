@@ -142,6 +142,8 @@ Current implementation still uses delete-then-save replacement in `/documents` a
 
 Phase 10I adds version-related metadata fields to ingestion records and logs, but it does not implement staged replacement, active version pointers, or cutover logic.
 
+Phase 10J implements staged chunk writes and retrieval filtering for active-or-legacy chunks, but it still does not add a separate active version pointer table or background cleanup jobs.
+
 ## Future Implementation Boundary
 
 Future implementation may add version metadata, staged chunk writes, active version selection, idempotency handling, delayed cleanup, and migration logic without discarding the current mini RAG learning baseline abruptly.
