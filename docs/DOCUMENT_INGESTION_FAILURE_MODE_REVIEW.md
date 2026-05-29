@@ -122,3 +122,5 @@ Current implementation means `/documents` still uses a direct chunk replacement 
 ## Future Implementation Boundary
 
 Future implementation means staged replacement, explicit cutover, and delayed cleanup for safer document ingestion.
+
+Phase 10H turns that future design into an implementation plan, but it does not implement runtime changes.

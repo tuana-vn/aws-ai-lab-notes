@@ -113,3 +113,5 @@ Current implementation means `/documents` still uses the simple mini RAG ingesti
 ## Future Roadmap Boundary
 
 Future roadmap means staged replacement, explicit version metadata, safer cutover, and delayed cleanup of obsolete document versions.
+
+Phase 10H turns that target design into a practical implementation plan, but it does not implement runtime changes.

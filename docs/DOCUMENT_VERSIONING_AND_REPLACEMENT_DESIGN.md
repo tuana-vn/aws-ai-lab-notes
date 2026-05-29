@@ -188,3 +188,5 @@ Current implementation does not include active version pointers, staged versions
 ## Future Implementation Boundary
 
 Future implementation may add version metadata, staged replacement, explicit cutover, and delayed cleanup to make ingestion safer and more idempotent.
+
+Phase 10H turns this target design into an implementation blueprint, but it does not implement runtime changes.
