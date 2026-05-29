@@ -413,10 +413,125 @@ Resources:
             Auth:
               Authorizer: CognitoRagQueryAuthorizer
 
+  AiPlatformOperationalDashboard:
+    Type: AWS::CloudWatch::Dashboard
+    Properties:
+      DashboardName: !Sub aws-ai-platform-operations-${EnvironmentName}
+      DashboardBody: !Sub |
+        {
+          "widgets": [
+            {
+              "type": "text",
+              "x": 0,
+              "y": 0,
+              "width": 24,
+              "height": 3,
+              "properties": {
+                "markdown": "# AWS AI Platform PoC Operations\nThis Phase 9C dashboard is a low-risk PoC operational view built from current CloudWatch Logs. DynamoDB traces, approval records, and incident report records remain companion evidence and are not native dashboard widget sources."
+              }
+            },
+            {
+              "type": "log",
+              "x": 0,
+              "y": 3,
+              "width": 8,
+              "height": 6,
+              "properties": {
+                "query": "SOURCE '/aws/lambda/${RagQueryFunction}'\n| fields @timestamp, request_id, requestId, status, eventType, question, source_count, sourceCount, eligible_chunk_count, eligibleChunkCount\n| filter status = \"no_source\" or eventType = \"rag_no_source\"\n| sort @timestamp desc\n| limit 20",
+                "region": "${AWS::Region}",
+                "title": "RAG No-Source Events",
+                "view": "table"
+              }
+            },
+            {
+              "type": "log",
+              "x": 8,
+              "y": 3,
+              "width": 8,
+              "height": 6,
+              "properties": {
+                "query": "SOURCE '/aws/lambda/${RagQueryFunction}'\n| fields @timestamp, request_id, requestId, status, eventType, guardrail_action, guardrailAction, guardrail_reason, guardrailReason, guardrail_matched_rule, guardrailMatchedRule\n| filter status = \"blocked\" or eventType = \"input_guardrail_blocked\" or guardrail_action = \"block\" or guardrailAction = \"block\"\n| sort @timestamp desc\n| limit 20",
+                "region": "${AWS::Region}",
+                "title": "RAG Guardrail Blocks",
+                "view": "table"
+              }
+            },
+            {
+              "type": "log",
+              "x": 16,
+              "y": 3,
+              "width": 8,
+              "height": 6,
+              "properties": {
+                "query": "SOURCE '/aws/lambda/${RagQueryFunction}'\n| fields @timestamp, request_id, requestId, path, user_id, userId, status, eventType, @message\n| filter status = \"denied\" or eventType = \"policy_denied\" or @message like /denied|policy/\n| sort @timestamp desc\n| limit 20",
+                "region": "${AWS::Region}",
+                "title": "RAG Policy Denied Events",
+                "view": "table"
+              }
+            },
+            {
+              "type": "log",
+              "x": 0,
+              "y": 9,
+              "width": 8,
+              "height": 6,
+              "properties": {
+                "query": "SOURCE '/aws/lambda/${AgentRunFunction}'\n| fields @timestamp, request_id, requestId, task, tool_calls, toolCalls, status, eventType, @message\n| filter ispresent(tool_calls) or ispresent(toolCalls) or eventType = \"agent_tool_called\" or eventType = \"agent_tool_failed\" or @message like /tool_calls|toolCalls|trace_lookup|log_search|rag_query/\n| sort @timestamp desc\n| limit 20",
+                "region": "${AWS::Region}",
+                "title": "Agent Tool Execution",
+                "view": "table"
+              }
+            },
+            {
+              "type": "log",
+              "x": 8,
+              "y": 9,
+              "width": 8,
+              "height": 6,
+              "properties": {
+                "query": "SOURCE '/aws/lambda/${ApprovalsFunction}'\n| fields @timestamp, approval_id, approvalId, decision, execution_status, executionStatus, user_id, userId, status, eventType, @message\n| filter eventType = \"approval_decided\" or ispresent(approval_id) or ispresent(approvalId) or @message like /approval|decision|approved|rejected/\n| sort @timestamp desc\n| limit 20",
+                "region": "${AWS::Region}",
+                "title": "Approval Decisions",
+                "view": "table"
+              }
+            },
+            {
+              "type": "log",
+              "x": 16,
+              "y": 9,
+              "width": 8,
+              "height": 6,
+              "properties": {
+                "query": "SOURCE '/aws/lambda/${ApprovalsFunction}'\n| fields @timestamp, approval_id, approvalId, report_id, reportId, execution_status, executionStatus, action_type, actionType, user_id, userId, status, eventType, @message\n| filter eventType = \"approval_execute_requested\" or eventType = \"approval_execute_denied\" or eventType = \"approval_executed\" or ispresent(report_id) or ispresent(reportId) or @message like /execute|executed|reportId|report_id|incident report/\n| sort @timestamp desc\n| limit 20",
+                "region": "${AWS::Region}",
+                "title": "Approval Executions",
+                "view": "table"
+              }
+            },
+            {
+              "type": "log",
+              "x": 0,
+              "y": 15,
+              "width": 24,
+              "height": 6,
+              "properties": {
+                "query": "SOURCE '/aws/lambda/${ApprovalsFunction}'\n| fields @timestamp, request_id, requestId, path, status, eventType, guardrail_action, guardrailAction, user_id, userId, approval_id, approvalId, report_id, reportId, @message\n| filter status = \"denied\" or status = \"failed\" or eventType = \"approval_decided\" or eventType = \"approval_execute_denied\" or eventType = \"approval_executed\" or eventType = \"incident_report_created\" or eventType = \"error\" or @message like /approval|execute|incident report/\n| sort @timestamp desc\n| limit 50",
+                "region": "${AWS::Region}",
+                "title": "Approval Security Audit Events",
+                "view": "table"
+              }
+            }
+          ]
+        }
+
 Outputs:
   ApiBaseUrl:
     Description: Base invoke URL for the deployed API stage.
     Value: !Sub https://${ApiGateway}.execute-api.${AWS::Region}.amazonaws.com/v1
+
+  OperationalDashboardName:
+    Description: CloudWatch dashboard name for the Phase 9C operational view.
+    Value: !Ref AiPlatformOperationalDashboard
 
   ApiStageThrottleRateLimit:
     Description: Configured API Gateway steady-state throttling rate limit.

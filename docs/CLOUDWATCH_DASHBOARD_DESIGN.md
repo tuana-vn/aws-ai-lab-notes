@@ -6,6 +6,8 @@ This document defines a practical CloudWatch dashboard design for the current AW
 
 It does not claim that a dashboard has already been deployed. It describes the sections, widgets, and Logs Insights queries that would give operators a useful view of the current runtime without pretending that more telemetry exists than the repository actually emits today.
 
+Phase 9B added approval and execution audit events that now make approval lifecycle visibility more concrete in CloudWatch Logs. Phase 9C operationalizes this design through a practical runbook and, when the updated SAM template is deployed, a basic dashboard resource.
+
 ## Design Principles
 
 - start from existing Lambda log groups and current structured logs
@@ -85,7 +87,7 @@ Preferred current log groups to query:
 
 ## Current PoC Limitations
 
-- there is no deployed CloudWatch dashboard resource yet
+- before the Phase 9C template is deployed, no CloudWatch dashboard resource exists yet; after deployment, the dashboard is a basic PoC operational view, not a production-grade dashboard, and it does not include alarms yet
 - CloudWatch Logs are the primary dashboard source, while DynamoDB traces, approval records, and incident report records remain companion evidence
 - not every handler emits normalized structured JSON logs
 - approval and incident report handlers currently rely more on DynamoDB records than on explicit audit log events

@@ -1,7 +1,7 @@
 # RAG Evaluation Report
 
 - API base URL: https://dx920qvnc2.execute-api.ap-southeast-1.amazonaws.com/v1
-- timestamp: 2026-05-29T08:03:27.565636+00:00
+- timestamp: 2026-05-29T10:16:35.258579+00:00
 - total cases: 16
 - evaluated cases: 15
 - skipped cases: 1
@@ -67,7 +67,7 @@ Min Similarity Score: 0.25
 
 Output Guardrail: action=allow, reason=valid_grounded_answer, warnings=-
 
-Answer: API Gateway can limit excessive traffic through throttling. [Source: documentId=api-gateway-note-demo, chunkId=chunk-0001] [Source: documentId=api-gateway-note, chunkId=chunk-0001]
+Answer: API Gateway can limit excessive traffic through throttling. Throttling helps protect backend services by controlling the number of requests that can be made to an API within a certain time period. [Source: documentId=api-gateway-note-dem...
 
 ### Q003
 
@@ -87,7 +87,7 @@ Min Similarity Score: 0.25
 
 Output Guardrail: action=allow, reason=valid_grounded_answer, warnings=-
 
-Answer: API Gateway protects backend services using authorization, throttling, and request validation before requests reach backend integrations. [Source: documentId=api-gateway-note, chunkId=chunk-0001]
+Answer: API Gateway protects backend services by using authorization, throttling, and request validation before requests reach backend integrations. [Source: documentId=api-gateway-note, chunkId=chunk-0001]
 
 ### Q004
 
@@ -267,7 +267,7 @@ Min Similarity Score: -
 
 Output Guardrail: -
 
-Answer: Found 4 matching log event(s) for preset blocked in the last 120 minutes.
+Answer: Found 3 matching log event(s) for preset blocked in the last 120 minutes.
 
 ### Q013
 
@@ -287,7 +287,7 @@ Min Similarity Score: -
 
 Output Guardrail: -
 
-Answer: Found 4 blocked log event(s). Inspected 3 trace record(s). Common blocked reasons: prompt_injection, unsafe_data_access.
+Answer: Found 3 blocked log event(s). Inspected 3 trace record(s). Common blocked reasons: prompt_injection, unsafe_data_access.
 
 ### Q014
 

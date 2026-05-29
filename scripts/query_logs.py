@@ -92,6 +92,7 @@ fields @timestamp, request_id, requestId, path, status, eventType, guardrail_act
     or eventType = "policy_denied"
     or eventType = "input_guardrail_blocked"
     or eventType = "rag_no_source"
+    or eventType = "approval_created"
     or eventType = "approval_decided"
     or eventType = "approval_execute_denied"
     or eventType = "approval_executed"
@@ -99,6 +100,8 @@ fields @timestamp, request_id, requestId, path, status, eventType, guardrail_act
     or eventType = "error"
     or ispresent(guardrail_action)
     or ispresent(guardrailAction)
+    or @message like /approval_created/
+    or @message like /Approval/
     or @message like /guardrail|denied|approval|execute|incident report/
 | sort @timestamp desc
 | limit 50
