@@ -52,3 +52,24 @@ def log_json(
             "extra_fields": fields,
         },
     )
+
+
+def log_audit_event(
+    logger: pylogging.Logger,
+    level: int,
+    event_type: str,
+    message: str,
+    request_id: str | None = None,
+    **fields: Any,
+) -> None:
+    audit_fields = {"eventType": event_type, **fields}
+    if request_id:
+        audit_fields.setdefault("requestId", request_id)
+
+    log_json(
+        logger,
+        level,
+        message,
+        request_id=request_id,
+        **audit_fields,
+    )

@@ -21,7 +21,7 @@ from common.agent import (
 from common.action_proposal import build_incident_report_proposal
 from common.investigation import extract_request_ids_from_log_events, summarize_investigation
 from common.log_search import SUPPORTED_PRESETS, search_logs
-from common.logging import get_logger, log_json
+from common.logging import get_logger, log_audit_event, log_json
 from common.policy import resolve_access_context
 from common.rag_service import normalize_filters, run_rag_query
 from common.response import json_response
@@ -731,6 +731,21 @@ def lambda_handler(event, context):
             tool_calls=tool_calls,
             status=response_body["status"],
             latency_ms=latency_ms,
+        )
+        log_audit_event(
+            LOGGER,
+            logging.INFO,
+            "approval_created",
+            "Approval record created for proposed incident report action.",
+            request_id=request_id,
+            approvalId=approval_id,
+            path=path,
+            routeCategory="agent",
+            status=response_body["status"],
+            actionType=proposed_action.get("actionType"),
+            executionStatus=proposed_action.get("executionStatus"),
+            userId=user_id,
+            task=payload["task"],
         )
         return json_response(200, response_body)
 
